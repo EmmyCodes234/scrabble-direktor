@@ -139,6 +139,16 @@ const TournamentCommandCenterDashboard = () => {
         setTournamentInfo(data);
     }
   };
+
+  const handleShareTournament = () => {
+    const url = `${window.location.origin}/tournaments/${tournamentId}/live`;
+    navigator.clipboard.writeText(url).then(() => {
+        toast.success("Public link copied to clipboard!");
+    }, (err) => {
+        toast.error("Failed to copy link.");
+        console.error('Could not copy text: ', err);
+    });
+  };
   
   const getTournamentState = () => {
       if (!tournamentInfo) return 'NO_TOURNAMENT';
@@ -150,6 +160,9 @@ const TournamentCommandCenterDashboard = () => {
           const resultsForCurrentRound = recentResults.filter(r => r.round === currentRound);
           const expectedResults = pairingsForCurrentRound.filter(p => p.table !== 'BYE').length;
           if (resultsForCurrentRound.length >= expectedResults) {
+              if (currentRound === tournamentInfo.rounds) {
+                  return 'TOURNAMENT_COMPLETE';
+              }
               return 'ROUND_COMPLETE';
           }
           return 'ROUND_IN_PROGRESS';
@@ -203,6 +216,15 @@ const TournamentCommandCenterDashboard = () => {
       <Header />
       <main className="pt-20 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h1 className="text-3xl font-heading font-bold text-gradient">{tournamentInfo.name}</h1>
+                    <p className="text-muted-foreground">Welcome to the Command Center.</p>
+                </div>
+                <Button variant="outline" onClick={handleShareTournament} iconName="Share2" iconPosition="left">
+                    Share Public Link
+                </Button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <DashboardSidebar />
                 <div className="md:col-span-3 space-y-6">

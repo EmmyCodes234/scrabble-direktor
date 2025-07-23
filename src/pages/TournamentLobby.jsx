@@ -42,6 +42,16 @@ const TournamentLobby = () => {
     }
   };
 
+  const handleShareTournament = (tournamentId) => {
+    const url = `${window.location.origin}/tournaments/${tournamentId}/live`;
+    navigator.clipboard.writeText(url).then(() => {
+        toast.success("Public link copied to clipboard!");
+    }, (err) => {
+        toast.error("Failed to copy link.");
+        console.error('Could not copy text: ', err);
+    });
+  };
+
   const openDeleteConfirm = (tournament) => {
     setTournamentToDelete(tournament);
     setShowConfirmModal(true);
@@ -128,6 +138,9 @@ const TournamentLobby = () => {
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
+                      <Button variant="ghost" size="icon" onClick={() => handleShareTournament(tourney.id)} className="text-muted-foreground hover:text-primary">
+                        <Icon name="Link" size={16} />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => openDeleteConfirm(tourney)} className="text-muted-foreground hover:text-destructive">
                         <Icon name="Trash2" size={16} />
                       </Button>

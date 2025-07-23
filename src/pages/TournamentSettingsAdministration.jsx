@@ -9,6 +9,32 @@ import SystemPreferencesSection from '../components/settings/SystemPreferencesSe
 import EmergencyControlsSection from '../components/settings/EmergencyControlsSection';
 import { supabase } from '../supabaseClient';
 import { toast, Toaster } from 'sonner';
+import Icon from '../components/AppIcon';
+import Button from '../components/ui/Button';
+
+const ShareSection = ({ tournamentId }) => {
+    const publicUrl = `${window.location.origin}/tournaments/${tournamentId}/live`;
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(publicUrl).then(() => {
+            toast.success("Public link copied to clipboard!");
+        });
+    };
+
+    return (
+        <div className="glass-card p-6">
+            <h3 className="font-heading font-semibold text-lg mb-4 flex items-center space-x-2">
+                <Icon name="Share2" size={20} className="text-primary" />
+                <span>Share Tournament</span>
+            </h3>
+            <p className="text-sm text-muted-foreground mb-3">Use this link to share the public-facing tournament page with players and spectators.</p>
+            <div className="flex items-center space-x-2 p-2 bg-input rounded-lg">
+                <input type="text" readOnly value={publicUrl} className="flex-1 bg-transparent text-muted-foreground text-sm focus:outline-none" />
+                <Button onClick={handleCopy} size="sm">Copy Link</Button>
+            </div>
+        </div>
+    );
+};
 
 const TournamentSettingsAdministration = () => {
     const { tournamentId } = useParams();
@@ -50,6 +76,7 @@ const TournamentSettingsAdministration = () => {
                                 <p className="text-muted-foreground">Loading settings...</p>
                             ) : (
                                 <>
+                                    <ShareSection tournamentId={tournamentId} />
                                     <TournamentConfigSection tournament={tournament} />
                                     <PlayerManagementSection />
                                     <ScoringParametersSection />

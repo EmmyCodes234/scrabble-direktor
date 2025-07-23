@@ -2,7 +2,7 @@ import React from 'react';
 import Icon from './AppIcon';
 import Button from './ui/Button';
 
-const PlayerStatsModal = ({ player, results, onClose }) => {
+const PlayerStatsModal = ({ player, results, onClose, onSelectPlayer }) => {
   if (!player) return null;
 
   const playerResults = results
@@ -20,9 +20,14 @@ const PlayerStatsModal = ({ player, results, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="glass-card w-full max-w-2xl mx-4 animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
         <div className="p-6 border-b border-border flex justify-between items-start">
-          <div>
-            <h2 className="text-2xl font-heading font-semibold text-foreground">{player.name}</h2>
-            <p className="text-muted-foreground">Rank: <span className="text-primary font-bold">{player.rank}</span> • Record: <span className="text-primary font-bold">{player.wins}-{player.losses}</span> • Spread: <span className="font-bold text-primary">{player.spread > 0 ? '+' : ''}{player.spread}</span></p>
+          <div className="flex items-center space-x-4">
+            {player.photo_url && (
+                <img src={player.photo_url} alt={player.name} className="w-16 h-16 rounded-full object-cover border-2 border-primary" />
+            )}
+            <div>
+                <h2 className="text-2xl font-heading font-semibold text-foreground">{player.name}</h2>
+                <p className="text-muted-foreground">Rank: <span className="text-primary font-bold">{player.rank}</span> • Record: <span className="text-primary font-bold">{player.wins}-{player.losses}</span> • Spread: <span className="font-bold text-primary">{player.spread > 0 ? '+' : ''}{player.spread}</span></p>
+            </div>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}><Icon name="X" /></Button>
         </div>
@@ -49,7 +54,7 @@ const PlayerStatsModal = ({ player, results, onClose }) => {
                   <div className="flex items-center space-x-3">
                      <Icon name={won ? "TrendingUp" : "TrendingDown"} className={won ? "text-success" : "text-destructive"} />
                      <div>
-                        <p className="text-sm text-muted-foreground">vs {opponentName} (Round {r.round})</p>
+                        <p className="text-sm text-muted-foreground">vs <button onClick={() => onSelectPlayer(opponentName)} className="text-primary hover:underline">{opponentName}</button> (Round {r.round})</p>
                         <p className="font-mono text-lg">{playerScore} - {opponentScore}</p>
                      </div>
                   </div>

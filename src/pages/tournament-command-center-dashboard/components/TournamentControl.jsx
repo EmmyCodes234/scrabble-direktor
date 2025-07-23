@@ -74,6 +74,15 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players }) => {
   const handlePairCurrentRound = async () => {
     setIsLoading(true);
     toast.info(`Pairing Round ${tournamentInfo.currentRound || 1} using ${tournamentInfo.pairing_system || 'Swiss'} system.`);
+    
+    // RR schedule generation
+    let totalRounds = tournamentInfo.rounds;
+    if (tournamentInfo.pairing_system === 'round_robin') {
+        const numPlayers = players.length;
+        const numMeetings = tournamentInfo.rr_meetings || 1;
+        totalRounds = (numPlayers % 2 === 0 ? numPlayers - 1 : numPlayers) * numMeetings;
+    }
+
     const newPairings = generatePairings();
     const currentRound = tournamentInfo?.currentRound || 1;
     const schedule = {
@@ -83,7 +92,7 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players }) => {
     
     const { data, error } = await supabase
         .from('tournaments')
-        .update({ pairing_schedule: schedule })
+        .update({ pairing_schedule: schedule, rounds: totalRounds })
         .eq('id', tournamentInfo.id)
         .select()
         .single();
