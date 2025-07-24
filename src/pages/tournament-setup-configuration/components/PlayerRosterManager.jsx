@@ -7,10 +7,24 @@ const PlayerRosterManager = ({ formData, onChange, errors }) => {
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Helper to parse players with ratings
+  const parsePlayerLines = (lines) => {
+    return lines.map(line => {
+      const parts = line.split(',');
+      const name = parts[0]?.trim();
+      const rating = parseInt(parts[1]?.trim(), 10) || 0;
+      if (!name) return null;
+      return { name, rating };
+    }).filter(Boolean); // Filter out any empty lines
+  };
+
   const handleTextareaChange = (value) => {
-    const players = value.split('\n').filter(name => name.trim() !== '');
-    onChange('playerNames', value);
-    onChange('playerCount', players.length);
+    const lines = value.split('\n');
+    const parsedPlayers = parsePlayerLines(lines);
+    const playerNamesWithRatings = parsedPlayers.map(p => `${p.name}, ${p.rating}`).join('\n');
+    
+    onChange('playerNames', playerNamesWithRatings); // Store raw text
+    onChange('playerCount', parsedPlayers.length);
   };
 
   const handleDrag = (e) => {
@@ -40,7 +54,7 @@ const PlayerRosterManager = ({ formData, onChange, errors }) => {
   };
 
   const handleFile = (file) => {
-    if (file.type !== 'text/csv') {
+    if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
       alert('Please upload a CSV file');
       return;
     }
@@ -48,36 +62,33 @@ const PlayerRosterManager = ({ formData, onChange, errors }) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const csv = e.target.result;
-      const lines = csv.split('\n');
-      const players = lines
-        .map(line => line.split(',')[0]?.trim())
-        .filter(name => name && name !== 'Name' && name !== 'Player');
-      
-      const playerText = players.join('\n');
+      const lines = csv.split('\n').slice(file.type === 'text/csv' ? 1 : 0); // Skip header for official CSV
+      const parsedPlayers = parsePlayerLines(lines);
+      const playerText = parsedPlayers.map(p => `${p.name}, ${p.rating}`).join('\n');
+
       onChange('playerNames', playerText);
-      onChange('playerCount', players.length);
+      onChange('playerCount', parsedPlayers.length);
     };
     reader.readAsText(file);
   };
-
+  
   const clearPlayers = () => {
     onChange('playerNames', '');
     onChange('playerCount', 0);
   };
-
+  
   const addSamplePlayers = () => {
-    const samplePlayers = `Alice Johnson
-Bob Smith
-Carol Davis
-David Wilson
-Emma Brown
-Frank Miller
-Grace Taylor
-Henry Anderson
-Ivy Thompson
-Jack Martinez`;
-    onChange('playerNames', samplePlayers);
-    onChange('playerCount', 10);
+    const samplePlayers = `Alice Johnson, 1500
+Bob Smith, 1250
+Carol Davis, 1800
+David Wilson, 0
+Emma Brown, 1620
+Frank Miller, 1400
+Grace Taylor, 1330
+Henry Anderson, 1950
+Ivy Thompson, 1100
+Jack Martinez, 1770`;
+    handleTextareaChange(samplePlayers);
   };
 
   return (
@@ -92,7 +103,7 @@ Jack Martinez`;
               Player Roster Management
             </h2>
             <p className="text-sm text-muted-foreground">
-              Add players manually or import from CSV
+              Add players and their ratings
             </p>
           </div>
         </div>
@@ -111,19 +122,18 @@ Jack Martinez`;
         {/* Manual Entry */}
         <div>
           <label className="block text-sm font-medium text-foreground mb-3">
-            Player Names
+            Player Names & Ratings
             <span className="text-destructive ml-1">*</span>
           </label>
           
           <textarea
             value={formData.playerNames}
             onChange={(e) => handleTextareaChange(e.target.value)}
-            placeholder={`Enter player names, one per line:
+            placeholder={`Enter one player per line in "Name, Rating" format:
 
-Alice Johnson
-Bob Smith
-Carol Davis
-David Wilson`}
+Alice Johnson, 1500
+Bob Smith, 1250
+David Wilson, 0 (for unrated)`}
             className="w-full h-64 px-4 py-3 bg-input border border-border rounded-lg
                      text-foreground placeholder-muted-foreground resize-none
                      focus:ring-2 focus:ring-primary focus:ring-opacity-50 focus:outline-none
@@ -138,8 +148,8 @@ David Wilson`}
           )}
 
           <div className="flex items-center justify-between mt-4">
-            <p className="text-xs text-muted-foreground">
-              Format: One name per line, minimum 2 players required
+             <p className="text-xs text-muted-foreground">
+              Format: Name, Rating (0 for unrated)
             </p>
             <div className="flex space-x-2">
               <Button
@@ -200,7 +210,7 @@ David Wilson`}
                   Drop CSV file here or click to browse
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  CSV format: Name column required
+                  CSV format: Name in first column, Rating in second
                 </p>
               </div>
               
@@ -224,10 +234,9 @@ David Wilson`}
                   CSV Format Requirements
                 </p>
                 <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• First column should contain player names</li>
+                  <li>• Column 1: Player Name</li>
+                  <li>• Column 2: Player Rating (optional, defaults to 0)</li>
                   <li>• Header row will be automatically skipped</li>
-                  <li>• Empty rows will be ignored</li>
-                  <li>• Maximum 200 players supported</li>
                 </ul>
               </div>
             </div>

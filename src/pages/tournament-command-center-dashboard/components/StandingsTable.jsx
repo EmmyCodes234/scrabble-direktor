@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
-import { cn } from '../../../utils/cn';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
 
-const StandingsTable = ({ players, recentResults, tournamentState }) => {
-  const [viewMode, setViewMode] = useState('table'); // 'table' or 'cards'
+const StandingsTable = ({ players, recentResults }) => {
+  const [viewMode, setViewMode] = useState('table');
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const sortedPlayers = useMemo(() => {
     if (!players) return [];
@@ -25,13 +26,14 @@ const StandingsTable = ({ players, recentResults, tournamentState }) => {
                      (lastResult.player2_name === player.name && lastResult.score2 > lastResult.score1);
     
     const isDraw = lastResult.score1 === lastResult.score2;
-    const timeAgo = Math.floor((Date.now() - new Date(lastResult.created_at).getTime()) / 60000);
+    const timeAgo = Math.round((Date.now() - new Date(lastResult.created_at).getTime()) / 60000);
+    
+    if (timeAgo < 1) return { text: 'Just now', color: isDraw ? 'text-muted-foreground' : (isWinner ? 'text-success' : 'text-destructive') };
 
-    if (isDraw) return { text: `Drew ${timeAgo}m ago`, color: 'text-muted-foreground' };
-
+    const resultText = isDraw ? 'Drew' : (isWinner ? 'Won' : 'Lost');
     return {
-      text: `${isWinner ? 'Won' : 'Lost'} ${timeAgo}m ago`,
-      color: isWinner ? 'text-success' : 'text-destructive'
+      text: `${resultText} ${timeAgo}m ago`,
+      color: isDraw ? 'text-muted-foreground' : (isWinner ? 'text-success' : 'text-destructive')
     };
   };
 
@@ -48,28 +50,32 @@ const StandingsTable = ({ players, recentResults, tournamentState }) => {
     return <div className="flex items-center space-x-1 flex-wrap">{wins}{losses}{ties}</div>;
   };
 
-  const ResponsiveTableView = () => (
+  const TableView = () => (
     <div className="overflow-x-auto">
-      <table className="w-full">
+      <table className="w-full min-w-[640px] text-sm">
         <thead>
           <tr className="border-b border-border">
-            <th className="text-left p-3 sm:p-4 font-semibold text-foreground">Rank</th>
-            <th className="text-left p-3 sm:p-4 font-semibold text-foreground">Player</th>
-            <th className="text-left p-3 sm:p-4 font-semibold text-foreground">Record</th>
-            <th className="hidden md:table-cell text-right p-3 sm:p-4 font-semibold text-foreground">Spread</th>
-            <th className="hidden lg:table-cell text-left p-3 sm:p-4 font-semibold text-foreground">Last Game</th>
+            <th className="p-4 w-[10%] text-left font-semibold text-foreground">Rank</th>
+            <th className="p-4 w-[40%] text-left font-semibold text-foreground">Player</th>
+            <th className="p-4 w-[15%] text-center font-semibold text-foreground">Record</th>
+            <th className="p-4 w-[15%] text-center font-semibold text-foreground">Spread</th>
+            <th className="p-4 w-[20%] text-center font-semibold text-foreground">Last Game</th>
           </tr>
         </thead>
         <tbody>
           {sortedPlayers.map((player) => {
             const lastGame = getLastGameStatus(player);
             return (
-              <tr key={player.id} className="border-b border-border/50 hover:bg-muted/5 transition-colors group touch-target">
-                <td className="p-3 sm:p-4"><span className="font-mono font-semibold text-base sm:text-lg">{player.rank}</span></td>
-                <td className="p-3 sm:p-4"><span className="font-medium text-foreground text-sm sm:text-base">{player.name}</span></td>
-                <td className="p-3 sm:p-4"><span className="text-xs sm:text-sm text-muted-foreground font-mono">{player.wins || 0}-{player.losses || 0}{(player.ties || 0) > 0 ? `-${player.ties}` : ''}</span></td>
-                <td className="hidden md:table-cell p-3 sm:p-4 text-right"><span className={`font-mono font-semibold text-base sm:text-lg ${player.spread > 0 ? 'text-success' : player.spread < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{player.spread > 0 ? '+' : ''}{player.spread}</span></td>
-                <td className="hidden lg:table-cell p-3 sm:p-4"><span className={`text-sm ${lastGame.color}`}>{lastGame.text}</span></td>
+              <tr key={player.id} className="border-b border-border/50 hover:bg-muted/5 transition-colors group">
+                <td className="p-4 font-mono font-bold text-lg text-primary">{player.rank}</td>
+                <td className="p-4 font-medium text-foreground">{player.name}</td>
+                <td className="p-4 text-center font-mono">{player.wins || 0}-{player.losses || 0}{(player.ties || 0) > 0 ? `-${player.ties}` : ''}</td>
+                <td className={`p-4 text-center font-mono font-semibold ${player.spread > 0 ? 'text-success' : player.spread < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {player.spread > 0 ? '+' : ''}{player.spread || 0}
+                </td>
+                <td className={`p-4 text-center text-xs ${lastGame.color}`}>
+                  {lastGame.text}
+                </td>
               </tr>
             );
           })}
@@ -86,7 +92,7 @@ const StandingsTable = ({ players, recentResults, tournamentState }) => {
           <div key={player.id} className="glass-card p-4 hover:shadow-glow hover:border-primary/30 transition-smooth touch-target">
             <div className="flex items-center justify-between mb-3">
               <div><span className="font-mono font-semibold text-xl text-primary">#{player.rank}</span></div>
-              <div className="text-right"><div className={`font-mono font-semibold text-lg ${player.spread > 0 ? 'text-success' : player.spread < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{player.spread > 0 ? '+' : ''}{player.spread}</div></div>
+              <div className="text-right"><div className={`font-mono font-semibold text-lg ${player.spread > 0 ? 'text-success' : player.spread < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{player.spread > 0 ? '+' : ''}{player.spread || 0}</div></div>
             </div>
             <div className="font-medium text-foreground">{player.name}</div>
             <div className="text-sm text-muted-foreground">{player.wins || 0}-{player.losses || 0}{(player.ties || 0) > 0 ? `-${player.ties}` : ''}</div>
@@ -104,21 +110,22 @@ const StandingsTable = ({ players, recentResults, tournamentState }) => {
     <div className="glass-card h-full flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-border">
         <h3 className="font-heading font-semibold text-foreground">Live Standings</h3>
-        <div className="hidden md:flex items-center space-x-1 bg-muted/20 rounded-lg p-1">
-            <Button variant={viewMode === 'table' ? 'default' : 'ghost'} size="xs" onClick={() => setViewMode('table')}>Table</Button>
-            <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="xs" onClick={() => setViewMode('cards')}>Cards</Button>
-        </div>
+        {isDesktop && (
+            <div className="flex items-center space-x-1 bg-muted/20 rounded-lg p-1">
+                <Button variant={viewMode === 'table' ? 'default' : 'ghost'} size="xs" onClick={() => setViewMode('table')}>Table</Button>
+                <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="xs" onClick={() => setViewMode('cards')}>Cards</Button>
+            </div>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto">
         {players.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <h4 className="font-heading font-semibold mb-2">No Players Yet</h4>
+            <Icon name="Users" size={48} className="opacity-50 mb-4" />
+            <h4 className="font-heading font-semibold text-lg">No Players in Roster</h4>
+            <p className="text-sm">Add players to begin the tournament.</p>
           </div>
         ) : (
-          <>
-            <div className="md:hidden"><ResponsiveTableView /></div>
-            <div className="hidden md:block">{viewMode === 'table' ? <ResponsiveTableView /> : <CardView />}</div>
-          </>
+          isDesktop ? (viewMode === 'table' ? <TableView /> : <CardView />) : <CardView />
         )}
       </div>
     </div>

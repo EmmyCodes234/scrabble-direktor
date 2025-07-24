@@ -9,6 +9,7 @@ import Icon from '../../components/AppIcon';
 import { Toaster, toast } from 'sonner';
 import { supabase } from '../../supabaseClient';
 import Button from '../../components/ui/Button';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const useQuery = () => {
     return new URLSearchParams(useLocation().search);
@@ -35,14 +36,14 @@ const TournamentSetupConfiguration = () => {
                 .single();
             if (error) {
                 toast.error("Could not load the specified draft.");
-            } else {
+            } else if (data) {
                 setFormData({
                     name: data.name || '',
                     venue: data.venue || '',
                     date: data.date || '',
                     rounds: data.rounds || 8,
-                    playerNames: data.playerNames || '',
-                    playerCount: data.playerCount || 0
+                    playerNames: data.players?.map(p => `${p.name}, ${p.rating}`).join('\n') || '',
+                    playerCount: data.players?.length || 0
                 });
                 toast.info("Continuing a saved draft.");
             }
@@ -61,6 +62,17 @@ const TournamentSetupConfiguration = () => {
     });
   };
 
+  const createPlayerObjects = (playerNamesString) => {
+    return playerNamesString.split('\n')
+        .filter(line => line.trim())
+        .map((line, index) => {
+            const parts = line.split(',');
+            const name = parts[0]?.trim();
+            const rating = parseInt(parts[1]?.trim(), 10) || 0;
+            return { id: index + 1, name, rating, wins: 0, losses: 0, ties: 0, spread: 0, rank: 0, seed: 0 };
+        });
+  };
+
   const handleNextStep = () => {
     if (currentStep === 'details') setCurrentStep('players');
     if (currentStep === 'players') setCurrentStep('rounds');
@@ -72,19 +84,19 @@ const TournamentSetupConfiguration = () => {
   };
 
   const handleSaveOrUpdateDraft = async () => {
+      const players = createPlayerObjects(formData.playerNames);
       const draftData = {
         ...formData,
         status: 'draft',
-        players: formData.playerNames.split('\n').filter(name => name.trim()).map((name, index) => ({ id: index + 1, name: name.trim(), wins: 0, losses: 0, spread: 0, rank: index + 1 }))
+        players: players,
+        playerCount: players.length
       };
 
       if (draftId) {
-          // Update existing draft
           const { error } = await supabase.from('tournaments').update(draftData).eq('id', draftId);
           if (error) toast.error("Failed to update draft.");
           else toast.success("Draft updated successfully!");
       } else {
-          // Insert new draft
           const { data, error } = await supabase.from('tournaments').insert([draftData]).select().single();
           if (error) toast.error("Failed to save draft.");
           else {
@@ -97,16 +109,29 @@ const TournamentSetupConfiguration = () => {
   const handleCreateTournament = async () => {
     setIsLoading(true);
     try {
+        const players = createPlayerObjects(formData.playerNames);
+        const seededPlayers = [...players]
+            .sort((a, b) => b.rating - a.rating)
+            .map((player, index) => ({ ...player, seed: index + 1, rank: index + 1 }));
+
         const finalData = {
             ...formData,
-            status: 'setup', // Finalize status
-            players: formData.playerNames.split('\n').filter(name => name.trim()).map((name, index) => ({ id: index + 1, name: name.trim(), wins: 0, losses: 0, spread: 0, rank: index + 1 }))
+            status: 'setup',
+            players: seededPlayers,
+            playerCount: seededPlayers.length
         };
+        
+        let tournamentIdToUpdate = draftId;
+        if (!draftId) {
+            const { data: newDraft, error: newDraftError } = await supabase.from('tournaments').insert([{ status: 'draft' }]).select('id').single();
+            if (newDraftError) throw newDraftError;
+            tournamentIdToUpdate = newDraft.id;
+        }
 
         const { data, error } = await supabase
             .from('tournaments')
             .update(finalData)
-            .eq('id', draftId) // Update the existing draft record
+            .eq('id', tournamentIdToUpdate)
             .select()
             .single();
 
@@ -126,7 +151,7 @@ const TournamentSetupConfiguration = () => {
       <Header />
       <main className="pt-20 pb-12">
         <div className="max-w-4xl mx-auto px-6">
-          <div className="text-center mb-12 animate-fade-in">
+          <div className="text-center mb-12">
             <h1 className="text-4xl font-heading font-bold text-gradient mb-4">
               New Tournament Wizard
             </h1>
@@ -142,12 +167,22 @@ const TournamentSetupConfiguration = () => {
                 </div>
             </div>
             <div className="md:col-span-3">
-                {currentStep === 'details' && <TournamentDetailsForm formData={formData} onChange={handleFormChange} errors={{}} />}
-                {currentStep === 'players' && <PlayerRosterManager formData={formData} onChange={handleFormChange} errors={{}} />}
-                {currentStep === 'rounds' && <RoundsConfiguration formData={formData} onChange={handleFormChange} errors={{}} />}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentStep}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {currentStep === 'details' && <TournamentDetailsForm formData={formData} onChange={handleFormChange} errors={{}} />}
+                  {currentStep === 'players' && <PlayerRosterManager formData={formData} onChange={handleFormChange} errors={{}} />}
+                  {currentStep === 'rounds' && <RoundsConfiguration formData={formData} onChange={handleFormChange} errors={{}} />}
+                </motion.div>
+              </AnimatePresence>
                 <div className="mt-8 flex justify-between items-center">
                     {currentStep !== 'details' ? (<Button variant="outline" onClick={handlePrevStep}>Back</Button>) : <div />}
-                    {currentStep !== 'rounds' ? (<Button onClick={handleNextStep}>Next</Button>) : (<Button onClick={handleCreateTournament} loading={isLoading} disabled={!draftId}>Finalize & Create</Button>)}
+                    {currentStep !== 'rounds' ? (<Button onClick={handleNextStep}>Next</Button>) : (<Button onClick={handleCreateTournament} loading={isLoading}>Finalize & Create</Button>)}
                 </div>
             </div>
           </div>

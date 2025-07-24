@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../AppIcon';
 import Button from './Button';
 import { cn } from '../../utils/cn';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const Header = () => {
   const location = useLocation();
@@ -10,11 +12,7 @@ const Header = () => {
   const params = useParams();
   const [activeTournamentId, setActiveTournamentId] = useState(null);
   const [quickMenuOpen, setQuickMenuOpen] = useState(false);
-  const [tournamentStatus, setTournamentStatus] = useState({
-    phase: 'active',
-    participants: 24,
-    round: 3
-  });
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   useEffect(() => {
     const idFromUrl = params.tournamentId;
@@ -60,35 +58,38 @@ const Header = () => {
           </div>
         </div>
 
-        <nav className="flex items-center space-x-1">
-          {navigationTabs.map((tab) => {
-            // Dashboard is active if a tournamentId is in the URL
-            const isDashboardActive = tab.label === 'Dashboard' && !!params.tournamentId;
-            const isLobbyActive = tab.label === 'Lobby' && location.pathname === '/';
-            const isDisabled = tab.label === 'Dashboard' && !activeTournamentId;
+        {isDesktop && (
+          <nav className="flex items-center space-x-1">
+            {navigationTabs.map((tab) => {
+              if (!activeTournamentId && tab.label !== 'Lobby') return null;
 
-            return (
-              <button
-                key={tab.label}
-                onClick={() => handleTabClick(tab.path)}
-                disabled={isDisabled}
-                className={cn(
-                  "flex items-center space-x-2 px-6 py-2 rounded-lg font-heading font-medium transition-all duration-200 ease-out relative group",
-                  (isDashboardActive || isLobbyActive)
-                    ? 'text-primary bg-primary/10 shadow-glow' 
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/20',
-                  isDisabled && "opacity-50 cursor-not-allowed hover:bg-transparent"
-                )}
-              >
-                <Icon name={tab.icon} size={18} />
-                <span>{tab.label}</span>
-                {(isDashboardActive || isLobbyActive) && (
-                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />
-                )}
-              </button>
-            );
-          })}
-        </nav>
+              const isDashboardActive = tab.label === 'Dashboard' && !!params.tournamentId;
+              const isLobbyActive = tab.label === 'Lobby' && location.pathname === '/';
+              
+              return (
+                <button
+                  key={tab.label}
+                  onClick={() => handleTabClick(tab.path)}
+                  className={cn(
+                    "flex items-center space-x-2 px-6 py-2 rounded-lg font-heading font-medium transition-all duration-200 ease-out relative group",
+                    (isDashboardActive || isLobbyActive)
+                      ? 'text-primary' 
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+                  )}
+                >
+                  <Icon name={tab.icon} size={18} />
+                  <span>{tab.label}</span>
+                  {(isDashboardActive || isLobbyActive) && (
+                    <motion.div 
+                      layoutId="active-nav-indicator" 
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" 
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        )}
 
         <div className="flex items-center space-x-4">
            <div className="relative">
@@ -101,31 +102,44 @@ const Header = () => {
               <Icon name="MoreVertical" size={20} />
             </Button>
 
-            {quickMenuOpen && (
-              <div className="absolute right-0 top-full mt-2 w-56 glass-card shadow-glass-xl animate-slide-down">
-                <div className="p-2">
-                  {quickActions.map((action, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleQuickAction(action.action)}
-                      className="w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left hover:bg-muted/20 transition-colors duration-200 text-sm"
-                    >
-                      <Icon name={action.icon} size={16} />
-                      <span>{action.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <AnimatePresence>
+              {quickMenuOpen && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    transition={{ duration: 0.15, ease: 'easeOut' }}
+                    className="absolute right-0 top-full mt-2 w-56 glass-card shadow-glass-xl origin-top-right z-50"
+                  >
+                    <div className="p-2">
+                      {quickActions.map((action, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleQuickAction(action.action)}
+                          className="w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left hover:bg-muted/20 transition-colors duration-200 text-sm"
+                        >
+                          <Icon name={action.icon} size={16} />
+                          <span>{action.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                  
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="fixed inset-0 z-40"
+                    onClick={() => setQuickMenuOpen(false)}
+                  />
+                </>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
-       {quickMenuOpen && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setQuickMenuOpen(false)}
-        />
-      )}
     </header>
   );
 };

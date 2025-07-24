@@ -11,7 +11,7 @@ import NotFound from "pages/NotFound";
 import PlayerManagementRosterControl from "./pages/PlayerManagementRosterControl";
 import TournamentSettingsAdministration from "./pages/TournamentSettingsAdministration";
 import ReportsPage from "./pages/ReportsPage";
-import PairingManagementPage from "./pages/PairingManagementPage"; // Import the new page
+import PairingManagementPage from "./pages/PairingManagementPage";
 
 const Routes = () => {
   return (
@@ -31,7 +31,7 @@ const Routes = () => {
         <Route path="/tournament/:tournamentId/players" element={<PlayerManagementRosterControl />} />
         <Route path="/tournament/:tournamentId/settings" element={<TournamentSettingsAdministration />} />
         <Route path="/tournament/:tournamentId/reports" element={<ReportsPage />} />
-        <Route path="/tournament/:tournamentId/pairings" element={<PairingManagementPage />} /> {/* Add new route */}
+        <Route path="/tournament/:tournamentId/pairings" element={<PairingManagementPage />} />
 
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>
