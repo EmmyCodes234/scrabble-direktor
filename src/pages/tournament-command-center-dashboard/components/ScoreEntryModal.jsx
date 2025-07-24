@@ -1,0 +1,84 @@
+import React, { useState, useEffect } from 'react';
+import Icon from '../../../components/AppIcon';
+import Button from '../../../components/ui/Button';
+import Input from '../../../components/ui/Input';
+import { toast } from 'sonner';
+
+const ScoreEntryModal = ({ isOpen, onClose, matchup, onResultSubmit }) => {
+  const [score1, setScore1] = useState('');
+  const [score2, setScore2] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // THIS IS THE FIX: Reset scores when the matchup changes (i.e., when the modal opens for a new game)
+  useEffect(() => {
+    setScore1('');
+    setScore2('');
+  }, [matchup]);
+
+  if (!isOpen || !matchup) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (score1 === '' || score2 === '') {
+      toast.error("Please enter scores for both players.");
+      return;
+    }
+    setIsLoading(true);
+    const result = {
+      player1: matchup.player1.name,
+      player2: matchup.player2.name,
+      score1: parseInt(score1, 10),
+      score2: parseInt(score2, 10),
+    };
+    try {
+      await onResultSubmit(result);
+      onClose(); // Close modal on success
+    } catch (error) {
+      // The parent component will show the error toast
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass-card w-full max-w-md mx-4 animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+        <form onSubmit={handleSubmit}>
+          <div className="p-6 border-b border-border">
+            <h2 className="text-xl font-heading font-semibold text-foreground">Enter Score for Table {matchup.table}</h2>
+            <p className="text-sm text-muted-foreground">Round {matchup.round}</p>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-lg font-medium text-foreground">{matchup.player1.name}</label>
+              <Input
+                type="number"
+                value={score1}
+                onChange={(e) => setScore1(e.target.value)}
+                placeholder="Score"
+                className="w-24 text-center"
+                autoFocus
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-lg font-medium text-foreground">{matchup.player2.name}</label>
+              <Input
+                type="number"
+                value={score2}
+                onChange={(e) => setScore2(e.target.value)}
+                placeholder="Score"
+                className="w-24 text-center"
+              />
+            </div>
+          </div>
+          <div className="p-4 bg-muted/10 flex justify-end space-x-2 rounded-b-lg">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" loading={isLoading}>Record Result</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default ScoreEntryModal;

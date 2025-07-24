@@ -15,6 +15,11 @@ const PlayerStatsModal = ({ player, results, onClose, onSelectPlayer }) => {
     avgScore: playerResults.length > 0 ? Math.round(playerResults.reduce((acc, r) => acc + (r.player1_name === player.name ? r.score1 : r.score2), 0) / playerResults.length) : 0,
     avgOpponentRating: 'N/A'
   };
+  
+  const handleOpponentClick = (name) => {
+    onClose(); // Close current modal
+    setTimeout(() => onSelectPlayer(name), 150); // Open new modal after a short delay
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -54,7 +59,7 @@ const PlayerStatsModal = ({ player, results, onClose, onSelectPlayer }) => {
                   <div className="flex items-center space-x-3">
                      <Icon name={won ? "TrendingUp" : "TrendingDown"} className={won ? "text-success" : "text-destructive"} />
                      <div>
-                        <p className="text-sm text-muted-foreground">vs <button onClick={() => onSelectPlayer(opponentName)} className="text-primary hover:underline">{opponentName}</button> (Round {r.round})</p>
+                        <p className="text-sm text-muted-foreground">vs <button onClick={() => handleOpponentClick(opponentName)} className="text-primary hover:underline">{opponentName}</button> (Round {r.round})</p>
                         <p className="font-mono text-lg">{playerScore} - {opponentScore}</p>
                      </div>
                   </div>
