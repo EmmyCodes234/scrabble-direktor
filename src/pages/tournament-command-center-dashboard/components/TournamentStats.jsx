@@ -8,7 +8,7 @@ const TournamentStats = ({ players, recentResults, tournamentInfo }) => {
     : 0;
   
   const highestSpread = players.length > 0 
-    ? Math.max(...players.map(p => p.spread))
+    ? Math.max(...players.map(p => p.spread || 0))
     : 0;
     
   const activePlayers = players.filter(p => {
@@ -17,8 +17,8 @@ const TournamentStats = ({ players, recentResults, tournamentInfo }) => {
     return timeDiff < 30 * 60 * 1000; // Active in last 30 minutes
   }).length;
 
-  const completionRate = tournamentInfo.totalRounds > 0 
-    ? Math.round((tournamentInfo.currentRound / tournamentInfo.totalRounds) * 100)
+  const completionRate = tournamentInfo.rounds > 0 
+    ? Math.round(((tournamentInfo.currentRound || 1) - 1) / tournamentInfo.rounds * 100)
     : 0;
 
   const stats = [
@@ -32,7 +32,7 @@ const TournamentStats = ({ players, recentResults, tournamentInfo }) => {
     {
       label: 'Games Played',
       value: totalGames,
-      icon: 'Gamepad2',
+      icon: 'LayoutGrid', // Changed from Gamepad2
       color: 'text-success',
       bgColor: 'bg-success/20'
     },
