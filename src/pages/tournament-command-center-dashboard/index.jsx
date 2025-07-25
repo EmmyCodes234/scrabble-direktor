@@ -13,6 +13,7 @@ import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
 import { supabase } from '../../supabaseClient';
 import DashboardSidebar from './components/DashboardSidebar';
+import MobileNavBar from './components/MobileNavBar';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const TournamentCommandCenterDashboard = () => {
@@ -43,8 +44,9 @@ const TournamentCommandCenterDashboard = () => {
       setIsLoading(false);
       return;
     }
-    // Don't set loading to true here to prevent the flicker on background refetches
-    
+    // Only show initial full-page loader
+    if (!tournamentInfo) setIsLoading(true);
+
     try {
       const { data: tournamentData, error: tErr } = await supabase
         .from('tournaments')
@@ -62,11 +64,9 @@ const TournamentCommandCenterDashboard = () => {
       const rankedPlayers = recalculateRanks(combinedPlayers);
       setPlayers(rankedPlayers);
       
-      // Update players in the tournament object as well for consistency
       const updatedTournamentData = { ...tournamentData, players: rankedPlayers };
       setTournamentInfo(updatedTournamentData);
 
-      // Fetch ancillary data
       const [
         { data: resultsData, error: rErr },
         { data: pendingData, error: pErr }
@@ -86,9 +86,9 @@ const TournamentCommandCenterDashboard = () => {
         toast.error(`A critical error occurred: ${error.message}`);
         setTournamentInfo(null);
     } finally {
-        setIsLoading(false); // Only set loading to false at the very end
+        setIsLoading(false);
     }
-  }, [tournamentId]);
+  }, [tournamentId, tournamentInfo]);
 
   useEffect(() => {
     fetchTournamentData();
@@ -183,7 +183,6 @@ const TournamentCommandCenterDashboard = () => {
     const totalRounds = originalTournamentInfo.rounds;
     const isFinalRound = currentRound >= totalRounds;
 
-    // Optimistic UI update for a smooth transition
     setTournamentInfo(prev => ({
       ...prev,
       status: isFinalRound ? 'completed' : prev.status,
@@ -198,10 +197,10 @@ const TournamentCommandCenterDashboard = () => {
       const { error } = await supabase.from('tournaments').update(updatePayload).eq('id', tournamentId);
       if (error) {
         toast.error(`Failed to proceed: ${error.message}`);
-        setTournamentInfo(originalTournamentInfo); // Revert on failure
+        setTournamentInfo(originalTournamentInfo);
       } else {
         toast.success(isFinalRound ? 'Tournament Complete!' : `Proceeding to Round ${currentRound + 1}`);
-        await fetchTournamentData(); // Verify with server data
+        await fetchTournamentData();
       }
     } catch (error) {
       toast.error(`An unexpected error occurred: ${error.message}`);
@@ -306,16 +305,19 @@ const TournamentCommandCenterDashboard = () => {
       <Header />
       <ScoreEntryModal isOpen={showScoreModal.isOpen} onClose={() => setShowScoreModal({ isOpen: false, existingResult: null })} matchup={activeMatchup} onResultSubmit={handleResultSubmit} existingResult={showScoreModal.existingResult} />
       <PlayerStatsModal player={selectedPlayerModal} results={recentResults} onClose={() => setSelectedPlayerModal(null)} onSelectPlayer={(name) => setSelectedPlayerModal(players.find(p => p.name === name))} onEditResult={handleEditResultFromModal} />
-      <main className="pt-20 pb-8">
+      <main className="pt-20 pb-24 sm:pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
             {isDesktop ? (
-                <div className="grid grid-cols-4 gap-8">
-                    <div className="col-span-1"><DashboardSidebar /></div>
-                    <div className="col-span-3"><MainContent /></div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                    <div className="md:col-span-1"><DashboardSidebar tournamentId={tournamentId} /></div>
+                    <div className="md:col-span-3"><MainContent /></div>
                 </div>
-            ) : ( <MainContent /> )}
+            ) : ( 
+                <MainContent /> 
+            )}
         </div>
       </main>
+      {!isDesktop && <MobileNavBar tournamentId={tournamentId} />}
     </div>
   );
 };

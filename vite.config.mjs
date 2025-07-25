@@ -16,7 +16,7 @@ export default defineConfig({
     port: "4028",
     host: "0.0.0.0",
     strictPort: true,
-    allowedHosts: ['.amazonaws.com', '.builtwithrocket.new', 'direktorweb.site'], // Added your new domain
+    allowedHosts: ['direktorapp.netlify.app'], // Updated to only include the Netlify domain
     appType: 'spa'
   }
 });

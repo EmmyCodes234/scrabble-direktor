@@ -14,8 +14,7 @@ import Icon from '../components/AppIcon';
 import Button from '../components/ui/Button';
 
 const ShareSection = ({ tournamentId }) => {
-    // Replace YOUR_APP_NAME with your actual Netlify site name
-    const publicUrl = `https://YOUR_APP_NAME.netlify.app/tournaments/${tournamentId}/live`;
+    const publicUrl = `https://direktorapp.netlify.app/tournaments/${tournamentId}/live`;
 
     const handleCopy = () => {
         navigator.clipboard.writeText(publicUrl).then(() => {

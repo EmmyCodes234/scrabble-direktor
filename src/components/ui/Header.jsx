@@ -16,9 +16,7 @@ const Header = () => {
 
   useEffect(() => {
     const idFromUrl = params.tournamentId;
-    const appData = JSON.parse(localStorage.getItem('scrabbleDirektorData'));
-    const idFromStorage = appData?.activeTournamentId;
-    setActiveTournamentId(idFromUrl || idFromStorage);
+    setActiveTournamentId(idFromUrl);
   }, [location, params.tournamentId]);
 
   const navigationTabs = [
@@ -28,6 +26,7 @@ const Header = () => {
 
   const handleTabClick = (path) => {
     navigate(path);
+    setQuickMenuOpen(false);
   };
   
   const handleQuickAction = (action) => {
@@ -36,26 +35,16 @@ const Header = () => {
   };
 
   const quickActions = [
-    { label: 'Pause Tournament', icon: 'Pause', action: () => console.log('Pause') },
-    { label: 'Export Data', icon: 'Download', action: () => console.log('Export') },
     { label: 'New Tournament', icon: 'Plus', action: () => navigate('/tournament-setup-configuration') }
   ];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 glass-morphism border-b">
-      <div className="flex items-center justify-between h-16 px-6">
+      <div className="flex items-center justify-between h-16 px-4 sm:px-6">
         <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/')}>
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-accent">
-            <Icon name="Zap" size={24} color="white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-heading font-semibold text-gradient">
-              Scrabble Direktor
-            </h1>
-            <span className="text-xs text-muted-foreground font-mono">
-              Tournament Command
-            </span>
-          </div>
+          <h1 className="text-2xl font-heading font-bold text-gradient">
+            Direktor
+          </h1>
         </div>
 
         {isDesktop && (
@@ -91,7 +80,7 @@ const Header = () => {
           </nav>
         )}
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-4">
            <div className="relative">
             <Button
               variant="ghost"
@@ -99,7 +88,7 @@ const Header = () => {
               onClick={() => setQuickMenuOpen(!quickMenuOpen)}
               className="relative"
             >
-              <Icon name="MoreVertical" size={20} />
+              <Icon name={quickMenuOpen ? "X" : "MoreVertical"} size={20} />
             </Button>
 
             <AnimatePresence>
@@ -113,6 +102,24 @@ const Header = () => {
                     className="absolute right-0 top-full mt-2 w-56 glass-card shadow-glass-xl origin-top-right z-50"
                   >
                     <div className="p-2">
+                      {!isDesktop && (
+                        <>
+                          {navigationTabs.map((tab) => {
+                            if (!activeTournamentId && tab.label !== 'Lobby') return null;
+                            return (
+                              <button
+                                key={tab.label}
+                                onClick={() => handleTabClick(tab.path)}
+                                className="w-full flex items-center space-x-3 px-3 py-2 rounded-md text-left hover:bg-muted/20 transition-colors duration-200 text-sm"
+                              >
+                                <Icon name={tab.icon} size={16} />
+                                <span>{tab.label}</span>
+                              </button>
+                            )
+                          })}
+                          <div className="h-px bg-border my-2" />
+                        </>
+                      )}
                       {quickActions.map((action, index) => (
                         <button
                           key={index}
@@ -126,11 +133,7 @@ const Header = () => {
                     </div>
                   </motion.div>
                   
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
+                  <div
                     className="fixed inset-0 z-40"
                     onClick={() => setQuickMenuOpen(false)}
                   />

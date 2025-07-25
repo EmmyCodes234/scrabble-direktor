@@ -10,8 +10,7 @@ import 'styles/ticker.css';
 import { Toaster } from 'sonner';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-
-// --- Helper Components ---
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const StatCard = ({ icon, label, value, subtext, color = 'text-primary' }) => (
     <div className="glass-card p-4">
@@ -36,8 +35,6 @@ const formatPlayerName = (name, players) => {
     return { formattedName: `${lastName}, ${firstName}`, seedInfo: seed ? `(A${seed})` : '' };
 };
 
-// --- Main Page Component ---
-
 const PublicTournamentPage = () => {
     const { tournamentId } = useParams();
     const [tournament, setTournament] = useState(null);
@@ -47,6 +44,7 @@ const PublicTournamentPage = () => {
     const [selectedPlayer, setSelectedPlayer] = useState(null);
     const [showSubmissionModal, setShowSubmissionModal] = useState(false);
     const [showPairingsDropdown, setShowPairingsDropdown] = useState(true);
+    const isMobile = useMediaQuery('(max-width: 768px)');
     
     const standingsRef = useRef(null);
     const pairingsRef = useRef(null);
@@ -54,6 +52,7 @@ const PublicTournamentPage = () => {
     const rosterRef = useRef(null);
 
     const recalculateRanks = useCallback((playerList) => {
+        if (!playerList) return [];
         return [...playerList].sort((a, b) => {
             if ((a.wins || 0) !== (b.wins || 0)) return (b.wins || 0) - (a.wins || 0);
             return (b.spread || 0) - (a.spread || 0);
@@ -65,28 +64,32 @@ const PublicTournamentPage = () => {
             if (!tournamentId) { setLoading(false); return; }
             setLoading(true);
             
-            // Fetch tournament details
-            const { data: tournamentData, error: tErr } = await supabase.from('tournaments').select('*').eq('id', tournamentId).single();
-            if (tErr) console.error("Error fetching tournament", tErr);
-            else setTournament(tournamentData);
-            
-            // Fetch combined player data using the new structure
-            const { data: tournamentPlayers, error: tpErr } = await supabase
-              .from('tournament_players')
-              .select('wins, losses, ties, spread, seed, rank, players(*)')
-              .eq('tournament_id', tournamentId);
-            if (tpErr) console.error("Error fetching players", tpErr);
-            else {
-              const combinedPlayers = tournamentPlayers.map(tp => ({ ...tp.players, ...tp }));
-              setPlayers(recalculateRanks(combinedPlayers));
-            }
+            try {
+                const { data: tournamentData, error: tErr } = await supabase
+                    .from('tournaments')
+                    .select(`*, tournament_players(*, players(*))`)
+                    .eq('id', tournamentId)
+                    .single();
 
-            // Fetch results
-            const { data: resultsData, error: rErr } = await supabase.from('results').select('*').eq('tournament_id', tournamentId).order('round', { ascending: true });
-            if (rErr) console.error("Error fetching results", rErr);
-            else setResults(resultsData || []);
-            
-            setLoading(false);
+                if (tErr || !tournamentData) throw tErr || new Error("Tournament not found");
+
+                const combinedPlayers = tournamentData.tournament_players.map(tp => ({
+                    ...tp.players,
+                    ...tp
+                }));
+                
+                setPlayers(recalculateRanks(combinedPlayers));
+                setTournament(tournamentData);
+
+                const { data: resultsData, error: rErr } = await supabase.from('results').select('*').eq('tournament_id', tournamentId).order('round', { ascending: true });
+                if (rErr) console.error("Error fetching results", rErr);
+                else setResults(resultsData || []);
+
+            } catch (error) {
+                console.error("Error fetching public data:", error);
+            } finally {
+                setLoading(false);
+            }
         };
         fetchPublicData();
         
@@ -137,7 +140,7 @@ const PublicTournamentPage = () => {
                 </button>
                 {showPairingsDropdown && (
                     <div className="pl-6 pt-1 pb-2 border-l border-border ml-5">
-                        {Object.keys(pairingsByRound).sort((a, b) => b - a).map(roundNum => (
+                        {Object.keys(pairingsByRound).sort((a, b) => parseInt(b) - parseInt(a)).map(roundNum => (
                             <a key={roundNum} href={`#round-${roundNum}`} onClick={(e) => { e.preventDefault(); scrollToRef({ current: document.getElementById(`round-${roundNum}`) }) }} className="flex p-2 rounded-lg hover:bg-muted/10 text-sm">
                                 Round {roundNum}
                             </a>
@@ -178,21 +181,21 @@ const PublicTournamentPage = () => {
                         </div>
                     )}
                     <div className="relative z-10 max-w-7xl mx-auto px-6">
-                        <h1 className="text-4xl font-heading font-bold text-gradient">{tournament.name}</h1>
+                        <h1 className="text-3xl sm:text-4xl font-heading font-bold text-gradient">{tournament.name}</h1>
                         <p className="text-muted-foreground mt-2">{tournament.venue} • {formattedDate}</p>
                     </div>
                 </header>
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-                        <aside className="hidden md:block md:col-span-1 md:sticky top-24 self-start">
+                        <aside className="md:col-span-1 md:sticky top-24 self-start">
                             <SidebarContent />
                         </aside>
                         <main className="md:col-span-3 space-y-16">
                             <section id="standings" ref={standingsRef}>
                                 <h2 className="font-heading text-2xl font-semibold mb-4 flex items-center"><Icon name="Trophy" className="mr-3 text-primary"/>Live Standings</h2>
-                                <div className="glass-card overflow-hidden">
-                                    <table className="w-full text-sm">
+                                <div className="glass-card overflow-x-auto">
+                                    <table className="w-full text-sm min-w-[600px]">
                                         <thead>
                                             <tr className="border-b border-border bg-muted/10">
                                                 <th className="p-3 text-left font-semibold">Rank</th>
@@ -218,7 +221,7 @@ const PublicTournamentPage = () => {
                             <section id="pairings" ref={pairingsRef}>
                                 <h2 className="font-heading text-2xl font-semibold mb-4 flex items-center"><Icon name="Swords" className="mr-3 text-primary"/>Pairings by Round</h2>
                                 <div className="space-y-8">
-                                    {Object.keys(pairingsByRound).sort((a, b) => b - a).map(roundNum => (
+                                    {Object.keys(pairingsByRound).sort((a, b) => parseInt(b) - parseInt(a)).map(roundNum => (
                                         <div key={roundNum} id={`round-${roundNum}`} className="glass-card">
                                             <h3 className="p-4 border-b border-border font-semibold text-lg">Round {roundNum}</h3>
                                             <div className="p-4 space-y-3">
@@ -252,7 +255,7 @@ const PublicTournamentPage = () => {
 
                             <section id="stats" ref={statsRef}>
                                 <h2 className="font-heading text-2xl font-semibold mb-4 flex items-center"><Icon name="BarChart2" className="mr-3 text-primary"/>Tournament Statistics</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <StatCard icon="Star" label="High Game Score" value={tournamentStats.highGame || 'N/A'} />
                                     <StatCard icon="Maximize2" label="Largest Blowout" value={tournamentStats.largestBlowout?.spread > -1 ? `+${tournamentStats.largestBlowout.spread}` : 'N/A'} subtext={tournamentStats.largestBlowout?.spread > -1 ? `${tournamentStats.largestBlowout.player1_name} vs ${tournamentStats.largestBlowout.player2_name}` : ''}/>
                                 </div>
