@@ -1,16 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import Icon from '../AppIcon';
 import Input from '../ui/Input';
-import Select from '../ui/Select';
 import { Checkbox } from '../ui/Checkbox';
 
-const PlayerManagementSection = () => {
-  const [settings, setSettings] = useState({
-    maxPlayers: 64,
-    allowLateEntry: true,
-    lateEntryDeadline: 3,
-  });
-
+const PlayerManagementSection = ({ settings, onSettingsChange }) => {
   return (
     <div className="glass-card p-6">
       <h3 className="font-heading font-semibold text-lg mb-4 flex items-center space-x-2">
@@ -22,24 +15,24 @@ const PlayerManagementSection = () => {
             <Input
               label="Maximum Players"
               type="number"
-              value={settings.maxPlayers}
-              onChange={(e) => setSettings({...settings, maxPlayers: e.target.value})}
+              value={settings.max_players || 64}
+              onChange={(e) => onSettingsChange('max_players', parseInt(e.target.value, 10))}
               description="Max players allowed in the tournament."
             />
         </div>
         <div className="space-y-4">
             <Checkbox
               label="Allow Late Entry"
-              checked={settings.allowLateEntry}
-              onCheckedChange={(checked) => setSettings({...settings, allowLateEntry: checked})}
+              checked={settings.allow_late_entry || false}
+              onCheckedChange={(checked) => onSettingsChange('allow_late_entry', checked)}
               description="Allow players to join after the tournament starts."
             />
-            {settings.allowLateEntry && (
+            {settings.allow_late_entry && (
               <Input
-                label="Late Entry Deadline (Rounds)"
+                label="Late Entry Deadline (Round #)"
                 type="number"
-                value={settings.lateEntryDeadline}
-                onChange={(e) => setSettings({...settings, lateEntryDeadline: e.target.value})}
+                value={settings.late_entry_deadline || 3}
+                onChange={(e) => onSettingsChange('late_entry_deadline', parseInt(e.target.value, 10))}
                 className="ml-6"
               />
             )}

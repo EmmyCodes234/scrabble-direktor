@@ -1,92 +1,86 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import Header from '../components/ui/Header';
 import DashboardSidebar from './tournament-command-center-dashboard/components/DashboardSidebar';
-import Icon from '../components/AppIcon';
-import Button from '../components/ui/Button';
-import PlayerStatsSummary from '../components/players/PlayerStatsSummary';
-import BulkManagementTools from '../components/players/BulkManagementTools';
-import PlayerSearchFilter from '../components/players/PlayerSearchFilter';
 import PlayerListItem from '../components/players/PlayerListItem';
-import PlayerEditModal from '../components/players/PlayerEditModal';
-import ExportModal from '../components/players/ExportModal';
-import AddPlayer from '../components/players/AddPlayer';
 import { Toaster, toast } from 'sonner';
 import { supabase } from '../supabaseClient';
+import Button from '../components/ui/Button';
+import Icon from '../components/AppIcon';
+import PlayerStatsSummary from '../components/players/PlayerStatsSummary';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 const PlayerManagementRosterControl = () => {
     const { tournamentId } = useParams();
-    const navigate = useNavigate();
     const [players, setPlayers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [selectedPlayers, setSelectedPlayers] = useState([]);
-    const [editingPlayer, setEditingPlayer] = useState(null);
-    const [showExportModal, setShowExportModal] = useState(false);
-  
-    useEffect(() => {
-      const fetchPlayers = async () => {
+    const [playerToRemove, setPlayerToRemove] = useState(null);
+
+    const fetchPlayers = useCallback(async () => {
         if (!tournamentId) return;
         setLoading(true);
-        const { data, error } = await supabase.from('tournaments').select('players').eq('id', tournamentId).single();
+        
+        const { data, error } = await supabase
+            .from('tournament_players')
+            .select(`
+                wins, losses, ties, spread, seed, rank,
+                players (*)
+            `)
+            .eq('tournament_id', tournamentId);
+
         if (error) {
-          toast.error("Failed to load player data.");
-        } else if (data) {
-          setPlayers(data.players || []);
+            toast.error("Failed to load player data.");
+            console.error(error);
+        } else {
+            const combinedPlayers = data.map(tp => ({ ...tp.players, ...tp, status: 'active' })); // Assume active for now
+            setPlayers(combinedPlayers);
         }
         setLoading(false);
-      };
-      fetchPlayers();
     }, [tournamentId]);
-    
-    const filteredPlayers = useMemo(() => {
-      if (!players) return [];
-      return players.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) && (statusFilter === 'all' || p.status === statusFilter));
-    }, [players, searchTerm, statusFilter]);
-  
+
+    useEffect(() => {
+      fetchPlayers();
+    }, [fetchPlayers]);
+
     const playerStats = useMemo(() => {
-      if (!players) return { total: 0, active: 0, inactive: 0, removed: 0 };
-      return { total: players.length, active: players.filter(p => p.status === 'active').length, inactive: players.filter(p => p.status === 'inactive').length, removed: players.filter(p => p.status === 'removed').length };
+        if (!players) return { total: 0, active: 0, inactive: 0, removed: 0 };
+        return { 
+            total: players.length, 
+            active: players.length, // Simplified for now
+            inactive: 0, 
+            removed: 0 
+        };
     }, [players]);
-  
-    const updateRemotePlayers = async (newPlayers, successMessage) => {
-        const { error } = await supabase.from('tournaments').update({ players: newPlayers, "playerCount": newPlayers.length }).eq('id', tournamentId);
+
+    const handleRemovePlayer = async () => {
+        if (!playerToRemove) return;
+        
+        // This now deletes the record from the join table, removing them from the tournament
+        // but keeping them in the master player library.
+        const { error } = await supabase
+            .from('tournament_players')
+            .delete()
+            .match({ tournament_id: tournamentId, player_id: playerToRemove.id });
+
         if (error) {
-          toast.error("Failed to save player changes.");
+            toast.error(`Failed to remove player: ${error.message}`);
         } else {
-            setPlayers(newPlayers);
-            if (successMessage) toast.success(successMessage);
+            toast.success(`Player "${playerToRemove.name}" has been removed from the tournament.`);
+            fetchPlayers(); // Refresh the list
         }
+        setPlayerToRemove(null);
     };
-
-    const handleAddSinglePlayer = (name) => {
-        const newPlayer = { id: `P${(players || []).length + 1}`, name, status: 'active', wins: 0, losses: 0, spread: 0 };
-        updateRemotePlayers([...(players || []), newPlayer], `Player "${name}" added.`);
-    };
-    
-    const handleBulkAdd = (names) => {
-        const newPlayers = names.map((name, index) => ({ id: `P${(players || []).length + index + 1}`, name, status: 'active', wins: 0, losses: 0, spread: 0 }));
-        updateRemotePlayers([...(players || []), ...newPlayers], `${names.length} players added.`);
-    };
-
-    const handleSavePlayer = (updatedPlayer) => {
-        const newPlayers = players.map(p => p.id === updatedPlayer.id ? updatedPlayer : p);
-        updateRemotePlayers(newPlayers, "Player details updated.");
-        setEditingPlayer(null);
-    };
-    
-    const handleRemovePlayer = (playerId) => {
-        const newPlayers = players.filter(p => p.id !== playerId);
-        updateRemotePlayers(newPlayers, "Player removed.");
-    };
-
-    if (loading) {
-        return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground">Loading Players...</p></div>;
-    }
 
     return (
         <div className="min-h-screen bg-background">
+            <ConfirmationModal
+                isOpen={!!playerToRemove}
+                title="Remove Player"
+                message={`Are you sure you want to remove "${playerToRemove?.name}" from this tournament?`}
+                onConfirm={handleRemovePlayer}
+                onCancel={() => setPlayerToRemove(null)}
+                confirmText="Yes, Remove"
+            />
             <Toaster position="top-right" richColors />
             <Header />
             <main className="pt-20 pb-8">
@@ -96,29 +90,35 @@ const PlayerManagementRosterControl = () => {
                         <div className="md:col-span-3">
                             <div className="mb-8">
                                 <h1 className="text-3xl font-heading font-bold text-gradient mb-2">Player Roster</h1>
-                                <p className="text-muted-foreground">Add, edit, and manage all participants in this tournament.</p>
+                                <p className="text-muted-foreground">Manage all participants in this tournament.</p>
                             </div>
                             <PlayerStatsSummary stats={playerStats} />
-                            <AddPlayer onAddPlayer={handleAddSinglePlayer} />
-                            <BulkManagementTools onBulkAdd={handleBulkAdd} onCsvImport={handleBulkAdd} onBatchOperation={() => {}} />
-                            <PlayerSearchFilter searchTerm={searchTerm} onSearchChange={setSearchTerm} statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} onClearFilters={() => { setSearchTerm(''); setStatusFilter('all'); }} totalResults={filteredPlayers.length} />
+                            
                             <div className="glass-card mt-6">
                                 <div className="divide-y divide-border">
-                                    {filteredPlayers.length > 0 ? (
-                                        filteredPlayers.map((player) => (
-                                        <PlayerListItem key={player.id} player={player} onEdit={() => setEditingPlayer(player)} onRemove={handleRemovePlayer} isSelected={selectedPlayers.includes(player.id)} onSelect={() => {}} />
+                                    {loading ? <p className="p-12 text-center text-muted-foreground">Loading Roster...</p> :
+                                     players.length > 0 ? (
+                                        players.map((player) => (
+                                            <PlayerListItem 
+                                                key={player.id} 
+                                                player={player} 
+                                                onRemove={() => setPlayerToRemove(player)}
+                                            />
                                         ))
-                                    ) : (
-                                        <div className="p-12 text-center text-muted-foreground">No players found.</div>
-                                    )}
+                                     ) : (
+                                        <div className="p-12 text-center text-muted-foreground">
+                                            <Icon name="Users" size={48} className="mx-auto opacity-50 mb-4"/>
+                                            <h4 className="font-heading font-semibold text-lg">No Players in Roster</h4>
+                                            <p className="text-sm">Players added during setup will appear here.</p>
+                                        </div>
+                                     )
+                                    }
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </main>
-            <PlayerEditModal player={editingPlayer} isOpen={!!editingPlayer} onClose={() => setEditingPlayer(null)} onSave={handleSavePlayer} />
-            <ExportModal isOpen={showExportModal} onClose={() => setShowExportModal(false)} />
         </div>
     );
 };

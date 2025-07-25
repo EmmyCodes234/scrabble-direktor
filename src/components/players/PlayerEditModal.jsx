@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Icon from '../AppIcon';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
@@ -6,18 +6,37 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const PlayerEditModal = ({ player, isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({ name: '', email: '', rating: '' });
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => { 
-    if (player) setFormData(player);
+    if (player) {
+      setFormData(player);
+      setPhotoPreview(player.photo_url || null);
+      setPhotoFile(null); // Reset file on new player
+    }
   }, [player]);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPhotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(formData);
+    onSave(formData, photoFile);
   };
 
   return (
@@ -40,7 +59,30 @@ const PlayerEditModal = ({ player, isOpen, onClose, onSave }) => {
           >
             <form onSubmit={handleSubmit}>
                 <div className="p-6">
-                  <h2 className="text-xl font-heading font-semibold mb-4">Edit Player</h2>
+                  <h2 className="text-xl font-heading font-semibold mb-6">Edit Player</h2>
+                  <div className="flex items-center space-x-4 mb-6">
+                    <div className="relative">
+                      <img 
+                        src={photoPreview || `https://ui-avatars.com/api/?name=${formData.name.split(' ').join('+')}&background=007BFF&color=fff`} 
+                        alt="Player" 
+                        className="w-20 h-20 rounded-full object-cover border-2 border-primary"
+                      />
+                      <button type="button" onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-accent text-white rounded-full p-1.5 hover:bg-accent/80">
+                          <Icon name="Camera" size={14}/>
+                      </button>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-lg">{formData.name}</h3>
+                      <p className="text-sm text-muted-foreground">Update player details and photo.</p>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handlePhotoChange}
+                        accept="image/png, image/jpeg" 
+                        className="hidden" 
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-4">
                     <Input label="Player Name" value={formData.name || ''} onChange={e => handleChange('name', e.target.value)} />
                     <Input label="Email" type="email" value={formData.email || ''} onChange={e => handleChange('email', e.target.value)} />

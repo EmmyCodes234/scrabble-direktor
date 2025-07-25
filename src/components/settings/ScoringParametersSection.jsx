@@ -1,16 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import Icon from '../AppIcon';
 import Input from '../ui/Input';
 import { Checkbox } from '../ui/Checkbox';
 
-const ScoringParametersSection = () => {
-  const [settings, setSettings] = useState({
-    winPoints: 1,
-    lossPoints: 0,
-    tiePoints: 0.5,
-    spreadTiebreaker: true,
-  });
-
+const ScoringParametersSection = ({ settings, onSettingsChange }) => {
   return (
     <div className="glass-card p-6">
       <h3 className="font-heading font-semibold text-lg mb-4 flex items-center space-x-2">
@@ -21,26 +14,29 @@ const ScoringParametersSection = () => {
         <Input
           label="Win Points"
           type="number"
-          value={settings.winPoints}
-          onChange={(e) => setSettings({...settings, winPoints: e.target.value})}
+          step="0.5"
+          value={settings.win_points ?? 1}
+          onChange={(e) => onSettingsChange('win_points', parseFloat(e.target.value))}
         />
         <Input
           label="Loss Points"
           type="number"
-          value={settings.lossPoints}
-          onChange={(e) => setSettings({...settings, lossPoints: e.target.value})}
+          step="0.5"
+          value={settings.loss_points ?? 0}
+          onChange={(e) => onSettingsChange('loss_points', parseFloat(e.target.value))}
         />
         <Input
           label="Tie Points"
           type="number"
-          value={settings.tiePoints}
-          onChange={(e) => setSettings({...settings, tiePoints: e.target.value})}
+          step="0.5"
+          value={settings.tie_points ?? 0.5}
+          onChange={(e) => onSettingsChange('tie_points', parseFloat(e.target.value))}
         />
       </div>
        <Checkbox
           label="Use Spread as Primary Tiebreaker"
-          checked={settings.spreadTiebreaker}
-          onCheckedChange={(checked) => setSettings({...settings, spreadTiebreaker: checked})}
+          checked={settings.spread_tiebreaker ?? true}
+          onCheckedChange={(checked) => onSettingsChange('spread_tiebreaker', checked)}
           description="Use point spread to break ties between players with equal wins."
         />
     </div>

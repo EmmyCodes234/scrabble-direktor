@@ -62,10 +62,10 @@ const RoundsConfiguration = ({ formData, onChange, errors }) => {
           <Icon name="Info" size={20} className="text-accent" />
           <div>
             <p className="text-sm font-medium text-foreground">
-              Recommended: {formData.playerCount ? Math.ceil(formData.playerCount / 4) : '8-12'} rounds
+              Recommended: {formData.playerCount > 0 ? Math.ceil(Math.log2(formData.playerCount)) + 2 : 'N/A'} rounds
             </p>
             <p className="text-xs text-muted-foreground">
-              Based on tournament size and format
+              Based on {formData.playerCount} finalized players.
             </p>
           </div>
         </div>

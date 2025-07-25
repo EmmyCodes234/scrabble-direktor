@@ -13,6 +13,7 @@ const Checkbox = React.forwardRef(({
     description,
     error,
     size = "default",
+    onCheckedChange, // Destructure the onCheckedChange prop
     ...props
 }, ref) => {
     // Generate unique ID if not provided
@@ -32,17 +33,19 @@ const Checkbox = React.forwardRef(({
                     type="checkbox"
                     ref={ref}
                     id={checkboxId}
-                    checked={checked}
+                    checked={!!checked} // Ensure value is a boolean
                     disabled={disabled}
                     required={required}
                     className="sr-only"
+                    // Use the onCheckedChange prop to handle the native onChange event
+                    onChange={(e) => onCheckedChange?.(e.target.checked)}
                     {...props}
                 />
 
                 <label
                     htmlFor={checkboxId}
                     className={cn(
-                        "peer shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground cursor-pointer transition-colors",
+                        "peer shrink-0 rounded-sm border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground cursor-pointer transition-colors flex items-center justify-center", // Added flex centering
                         sizeClasses[size],
                         checked && "bg-primary text-primary-foreground border-primary",
                         indeterminate && "bg-primary text-primary-foreground border-primary",
@@ -51,10 +54,10 @@ const Checkbox = React.forwardRef(({
                     )}
                 >
                     {checked && !indeterminate && (
-                        <Check className="h-3 w-3 text-current flex items-center justify-center" />
+                        <Check className="h-3.5 w-3.5 text-current" />
                     )}
                     {indeterminate && (
-                        <Minus className="h-3 w-3 text-current flex items-center justify-center" />
+                        <Minus className="h-3.5 w-3.5 text-current" />
                     )}
                 </label>
             </div>

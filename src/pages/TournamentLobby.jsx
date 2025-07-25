@@ -43,7 +43,8 @@ const TournamentLobby = () => {
   };
 
   const handleShareTournament = (tournamentId) => {
-    const url = `${window.location.origin}/tournaments/${tournamentId}/live`;
+    // Replace YOUR_APP_NAME with your actual Netlify site name
+    const url = `https://YOUR_APP_NAME.netlify.app/tournaments/${tournamentId}/live`;
     navigator.clipboard.writeText(url).then(() => {
         toast.success("Public link copied to clipboard!");
     }, (err) => {

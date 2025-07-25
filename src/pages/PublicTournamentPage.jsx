@@ -6,7 +6,6 @@ import PlayerStatsModal from 'components/PlayerStatsModal';
 import ResultSubmissionModal from 'components/ResultSubmissionModal';
 import Button from 'components/ui/Button';
 import { cn } from 'utils/cn';
-import TournamentTicker from 'components/TournamentTicker';
 import 'styles/ticker.css';
 import { Toaster } from 'sonner';
 import { format } from 'date-fns';
@@ -65,13 +64,24 @@ const PublicTournamentPage = () => {
         const fetchPublicData = async () => {
             if (!tournamentId) { setLoading(false); return; }
             setLoading(true);
+            
+            // Fetch tournament details
             const { data: tournamentData, error: tErr } = await supabase.from('tournaments').select('*').eq('id', tournamentId).single();
             if (tErr) console.error("Error fetching tournament", tErr);
+            else setTournament(tournamentData);
+            
+            // Fetch combined player data using the new structure
+            const { data: tournamentPlayers, error: tpErr } = await supabase
+              .from('tournament_players')
+              .select('wins, losses, ties, spread, seed, rank, players(*)')
+              .eq('tournament_id', tournamentId);
+            if (tpErr) console.error("Error fetching players", tpErr);
             else {
-                setTournament(tournamentData);
-                setPlayers(recalculateRanks(tournamentData?.players || []));
+              const combinedPlayers = tournamentPlayers.map(tp => ({ ...tp.players, ...tp }));
+              setPlayers(recalculateRanks(combinedPlayers));
             }
 
+            // Fetch results
             const { data: resultsData, error: rErr } = await supabase.from('results').select('*').eq('tournament_id', tournamentId).order('round', { ascending: true });
             if (rErr) console.error("Error fetching results", rErr);
             else setResults(resultsData || []);
@@ -80,8 +90,6 @@ const PublicTournamentPage = () => {
         };
         fetchPublicData();
         
-        // Real-time subscription is removed as per your request to ensure stability.
-
     }, [tournamentId, recalculateRanks]);
     
     const sortedPlayersByRating = useMemo(() => [...players].sort((a, b) => (b.rating || 0) - (a.rating || 0)), [players]);
@@ -96,6 +104,15 @@ const PublicTournamentPage = () => {
         }, { spread: -1 });
         return { highGame, largestBlowout };
     }, [results]);
+
+    const getRecordDisplay = (player) => {
+        const wins = player.wins || 0;
+        const losses = player.losses || 0;
+        const ties = player.ties || 0;
+        const winPoints = wins + (ties * 0.5);
+        const lossPoints = losses + (ties * 0.5);
+        return `${winPoints} - ${lossPoints}`;
+    };
 
     const scrollToRef = (ref) => ref.current?.scrollIntoView({ behavior: 'smooth' });
 
@@ -153,8 +170,14 @@ const PublicTournamentPage = () => {
             </AnimatePresence>
             
             <div className="min-h-screen bg-background text-foreground pb-10">
-                <header className="relative py-8 px-6 border-b border-border text-center bg-card/50">
-                    <div className="relative z-10 max-w-7xl mx-auto">
+                <header className="relative border-b border-border text-center bg-card/50 py-8">
+                    {tournament.banner_url && (
+                        <div className="absolute inset-0 h-full w-full overflow-hidden">
+                            <img src={tournament.banner_url} alt="Tournament Banner" className="w-full h-full object-cover opacity-20"/>
+                            <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent"></div>
+                        </div>
+                    )}
+                    <div className="relative z-10 max-w-7xl mx-auto px-6">
                         <h1 className="text-4xl font-heading font-bold text-gradient">{tournament.name}</h1>
                         <p className="text-muted-foreground mt-2">{tournament.venue} • {formattedDate}</p>
                     </div>
@@ -183,7 +206,7 @@ const PublicTournamentPage = () => {
                                                 <tr key={p.id} className="border-b border-border/50 hover:bg-muted/10 transition-colors cursor-pointer" onClick={() => setSelectedPlayer(p)}>
                                                     <td className="p-3 font-mono text-base">{p.rank}</td>
                                                     <td className="p-3 font-medium text-base">{p.name}</td>
-                                                    <td className="p-3 text-center font-mono">{p.wins}-{p.losses}</td>
+                                                    <td className="p-3 text-center font-mono">{getRecordDisplay(p)}</td>
                                                     <td className="p-3 font-semibold text-right">{p.spread > 0 ? '+' : ''}{p.spread}</td>
                                                 </tr>
                                             ))}
