@@ -32,6 +32,8 @@ const TournamentLobby = () => {
         const { data, error } = await supabase
           .from('tournaments')
           .select('*')
+          // Here you would typically filter by user_id if tournaments were linked to users
+          // .eq('user_id', session.user.id)
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -122,19 +124,23 @@ const TournamentLobby = () => {
         <main className="pt-20 pb-8">
           <div className="max-w-4xl mx-auto px-6">
             <div className="flex justify-between items-center mb-8">
-                <div>
-                    <h1 className="text-3xl font-heading font-bold text-gradient">Tournament Lobby</h1>
-                    <p className="text-muted-foreground">Welcome back, {userName}!</p>
-                </div>
-                <div className="flex items-center space-x-2">
-                    <Button onClick={() => navigate('/tournament-setup-configuration')} iconName="Plus" iconPosition="left">
-                        New Tournament
+              <div>
+                <h1 className="text-3xl font-heading font-bold text-gradient">Tournament Lobby</h1>
+                <p className="text-muted-foreground">Welcome back, {userName}!</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" onClick={() => navigate('/tournament-planner')}>
+                    <Icon name="Bot" className="mr-2" size={16} />
+                    Plan with AI
+                </Button>
+                <Button onClick={() => navigate('/tournament-setup-configuration')} iconName="Plus" iconPosition="left">
+                    New Tournament
+                </Button>
+                <div className="relative">
+                    <Button variant="outline" size="icon" onClick={() => setUserMenuOpen(!userMenuOpen)}>
+                        <Icon name="User" size={16} />
                     </Button>
-                    <div className="relative">
-                        <Button variant="outline" size="icon" onClick={() => setUserMenuOpen(!userMenuOpen)}>
-                            <Icon name="User" size={16} />
-                        </Button>
-                        <AnimatePresence>
+                    <AnimatePresence>
                         {userMenuOpen && (
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}
@@ -151,9 +157,9 @@ const TournamentLobby = () => {
                                 </Button>
                             </motion.div>
                         )}
-                        </AnimatePresence>
-                    </div>
+                    </AnimatePresence>
                 </div>
+              </div>
             </div>
             
             {draftTournaments.length > 0 && (
@@ -185,12 +191,8 @@ const TournamentLobby = () => {
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="icon" onClick={() => handleShareTournament(tourney.id)} className="text-muted-foreground hover:text-primary">
-                        <Icon name="Link" size={16} />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => openDeleteConfirm(tourney)} className="text-muted-foreground hover:text-destructive">
-                        <Icon name="Trash2" size={16} />
-                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleShareTournament(tourney.id)}><Icon name="Link" size={16} /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => openDeleteConfirm(tourney)}><Icon name="Trash2" size={16} /></Button>
                       <Button variant="outline" onClick={() => handleSelectTournament(tourney)}>Manage</Button>
                     </div>
                   </div>
@@ -198,10 +200,8 @@ const TournamentLobby = () => {
               ) : (
                 <div className="text-center glass-card p-12">
                   <Icon name="Trophy" size={48} className="mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium text-foreground">No tournaments found</h3>
-                  <p className="text-muted-foreground mt-1 mb-4">
-                    Get started by creating your first tournament.
-                  </p>
+                  <h3 className="text-lg font-medium text-foreground">No tournaments yet</h3>
+                  <p className="text-muted-foreground mt-1 mb-4">Plan a new tournament with our AI assistant to get started.</p>
                 </div>
               )}
             </div>
