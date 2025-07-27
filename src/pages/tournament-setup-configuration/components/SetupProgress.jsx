@@ -2,14 +2,18 @@ import React from 'react';
 import Icon from '../../../components/AppIcon';
 import { cn } from '../../../utils/cn';
 
-const SetupProgress = ({ currentStep, onStepClick }) => {
-  const steps = [
-    { id: 'details', label: 'Details', icon: 'Trophy' },
-    { id: 'players', label: 'Players', icon: 'Users' },
-    { id: 'rounds', label: 'Rounds', icon: 'RotateCcw' }
-  ];
-
+const SetupProgress = ({ steps, currentStep, onStepClick }) => {
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
+
+  const getStepIcon = (stepId) => {
+    switch(stepId) {
+        case 'details': return 'Trophy';
+        case 'players': return 'Users';
+        case 'teams': return 'Shield';
+        case 'rounds': return 'RotateCcw';
+        default: return 'HelpCircle';
+    }
+  }
 
   return (
     <div className="glass-card p-4 space-y-3 sticky top-24">
@@ -30,6 +34,7 @@ const SetupProgress = ({ currentStep, onStepClick }) => {
           )}>
             {index + 1}
           </div>
+          <Icon name={getStepIcon(step.id)} size={16} />
           <span>{step.label}</span>
         </button>
       ))}

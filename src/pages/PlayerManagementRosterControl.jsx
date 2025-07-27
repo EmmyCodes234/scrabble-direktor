@@ -5,7 +5,6 @@ import DashboardSidebar from './tournament-command-center-dashboard/components/D
 import PlayerListItem from '../components/players/PlayerListItem';
 import { Toaster, toast } from 'sonner';
 import { supabase } from '../supabaseClient';
-import Button from '../components/ui/Button';
 import Icon from '../components/AppIcon';
 import PlayerStatsSummary from '../components/players/PlayerStatsSummary';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -13,6 +12,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 const PlayerManagementRosterControl = () => {
     const { tournamentId } = useParams();
     const [players, setPlayers] = useState([]);
+    const [teams, setTeams] = useState([]);
     const [loading, setLoading] = useState(true);
     const [playerToRemove, setPlayerToRemove] = useState(null);
 
@@ -23,16 +23,21 @@ const PlayerManagementRosterControl = () => {
         const { data, error } = await supabase
             .from('tournament_players')
             .select(`
-                wins, losses, ties, spread, seed, rank,
+                wins, losses, ties, spread, seed, rank, team_id,
                 players (*)
             `)
             .eq('tournament_id', tournamentId);
 
         if (error) {
             toast.error("Failed to load player data.");
-            console.error(error);
         } else {
-            const combinedPlayers = data.map(tp => ({ ...tp.players, ...tp, status: 'active' })); // Assume active for now
+            const { data: teamsData } = await supabase
+                .from('teams')
+                .select('id, name')
+                .eq('tournament_id', tournamentId);
+            
+            setTeams(teamsData || []);
+            const combinedPlayers = data.map(tp => ({ ...tp.players, ...tp, status: 'active' }));
             setPlayers(combinedPlayers);
         }
         setLoading(false);
@@ -41,12 +46,25 @@ const PlayerManagementRosterControl = () => {
     useEffect(() => {
       fetchPlayers();
     }, [fetchPlayers]);
+    
+    // --- SORTING LOGIC UPDATE ---
+    const sortedPlayers = useMemo(() => {
+        return [...players].sort((a, b) => {
+            // Sort by team_id first (nulls/unassigned will be grouped)
+            if (a.team_id < b.team_id) return -1;
+            if (a.team_id > b.team_id) return 1;
+            // Then sort by seed within the team
+            return (a.seed || 0) - (b.seed || 0);
+        });
+    }, [players]);
+
+    const teamMap = useMemo(() => new Map(teams.map(team => [team.id, team.name])), [teams]);
 
     const playerStats = useMemo(() => {
         if (!players) return { total: 0, active: 0, inactive: 0, removed: 0 };
         return { 
             total: players.length, 
-            active: players.length, // Simplified for now
+            active: players.length,
             inactive: 0, 
             removed: 0 
         };
@@ -55,8 +73,6 @@ const PlayerManagementRosterControl = () => {
     const handleRemovePlayer = async () => {
         if (!playerToRemove) return;
         
-        // This now deletes the record from the join table, removing them from the tournament
-        // but keeping them in the master player library.
         const { error } = await supabase
             .from('tournament_players')
             .delete()
@@ -66,7 +82,7 @@ const PlayerManagementRosterControl = () => {
             toast.error(`Failed to remove player: ${error.message}`);
         } else {
             toast.success(`Player "${playerToRemove.name}" has been removed from the tournament.`);
-            fetchPlayers(); // Refresh the list
+            fetchPlayers();
         }
         setPlayerToRemove(null);
     };
@@ -97,11 +113,12 @@ const PlayerManagementRosterControl = () => {
                             <div className="glass-card mt-6">
                                 <div className="divide-y divide-border">
                                     {loading ? <p className="p-12 text-center text-muted-foreground">Loading Roster...</p> :
-                                     players.length > 0 ? (
-                                        players.map((player) => (
+                                     sortedPlayers.length > 0 ? (
+                                        sortedPlayers.map((player) => (
                                             <PlayerListItem 
                                                 key={player.id} 
-                                                player={player} 
+                                                player={player}
+                                                teamName={player.team_id ? teamMap.get(player.team_id) : null}
                                                 onRemove={() => setPlayerToRemove(player)}
                                             />
                                         ))

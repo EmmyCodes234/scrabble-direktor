@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from '../components/ui/Header';
 import { useParams } from 'react-router-dom';
 import DashboardSidebar from './tournament-command-center-dashboard/components/DashboardSidebar';
@@ -9,11 +9,12 @@ import Button from '../components/ui/Button';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '../components/ui/Accordion';
 import { Checkbox } from '../components/ui/Checkbox';
 
-const pairingSystems = [
-    { id: 'swiss', name: 'Swiss' },
-    { id: 'round_robin', name: 'Round Robin' },
-    { id: 'king_of_the_hill', name: 'King of the Hill (KOTH)' },
-    { id: 'random', name: 'Random' },
+const allPairingSystems = [
+    { id: 'swiss', name: 'Swiss', type: 'individual' },
+    { id: 'round_robin', name: 'Round Robin', type: 'individual' },
+    { id: 'king_of_the_hill', name: 'King of the Hill (KOTH)', type: 'individual' },
+    { id: 'random', name: 'Random', type: 'individual' },
+    { id: 'team_round_robin', name: 'Team Round Robin', type: 'team' },
 ];
 
 const PairingManagementPage = () => {
@@ -31,7 +32,7 @@ const PairingManagementPage = () => {
         setLoading(true);
         const { data, error } = await supabase
             .from('tournaments')
-            .select('pairing_system, rounds, advanced_pairing_modes, gibson_rule_enabled')
+            .select('pairing_system, rounds, advanced_pairing_modes, gibson_rule_enabled, type') // fetch tournament type
             .eq('id', tournamentId)
             .single();
 
@@ -58,6 +59,15 @@ const PairingManagementPage = () => {
         }
         setLoading(false);
     }, [tournamentId]);
+    
+    // Filter pairing systems based on tournament type
+    const availablePairingSystems = useMemo(() => {
+        if (!tournament) return [];
+        if (tournament.type === 'team') {
+            return allPairingSystems.filter(s => s.type === 'team' || s.id === 'random');
+        }
+        return allPairingSystems.filter(s => s.type === 'individual');
+    }, [tournament]);
 
     useEffect(() => {
         fetchSettings();
@@ -118,7 +128,7 @@ const PairingManagementPage = () => {
                                     <AccordionContent>
                                         <p className="text-muted-foreground mb-4">Select the primary pairing system. This is used if Advanced Mode is disabled.</p>
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                            {pairingSystems.map(system => (
+                                            {availablePairingSystems.map(system => (
                                                 <div key={system.id} className={`p-4 rounded-lg cursor-pointer border-2 ${settings.pairing_system === system.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'}`} onClick={() => setSettings({ ...settings, pairing_system: system.id })}>
                                                     <h3 className="font-semibold text-foreground">{system.name}</h3>
                                                 </div>
@@ -145,7 +155,7 @@ const PairingManagementPage = () => {
                                                     <div key={roundNum} className="grid grid-cols-4 gap-4 items-center p-3 bg-muted/20 rounded-lg">
                                                         <span className="font-semibold text-foreground">Round {roundNum}</span>
                                                         <select value={settings.advanced_pairing_modes[roundNum]?.system || 'swiss'} onChange={(e) => handleAdvancedModeSettingChange(roundNum, 'system', e.target.value)} className="bg-input border border-border rounded-md px-3 py-1.5 text-sm">
-                                                            {pairingSystems.map(system => (<option key={system.id} value={system.id}>{system.name}</option>))}
+                                                            {availablePairingSystems.map(system => (<option key={system.id} value={system.id}>{system.name}</option>))}
                                                         </select>
                                                         <select value={settings.advanced_pairing_modes[roundNum]?.base_round ?? roundNum - 1} onChange={(e) => handleAdvancedModeSettingChange(roundNum, 'base_round', parseInt(e.target.value))} className="bg-input border border-border rounded-md px-3 py-1.5 text-sm">
                                                             <option value={0}>Round 0 (Seeding)</option>
@@ -171,7 +181,8 @@ const PairingManagementPage = () => {
                                                 label="Enable Gibson Rule"
                                                 checked={settings.gibson_rule_enabled}
                                                 onCheckedChange={(checked) => setSettings({ ...settings, gibson_rule_enabled: checked })}
-                                                description="For later rounds, automatically pair a player who has clinched first place against the highest-ranked non-prizewinner."
+                                                description="For later rounds, automatically pair a player who has clinched first place against the highest-ranked non-prizewinner. (Individual events only)"
+                                                disabled={tournament?.type === 'team'}
                                             />
                                         </div>
                                     </AccordionContent>

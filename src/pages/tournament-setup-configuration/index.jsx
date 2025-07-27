@@ -4,6 +4,7 @@ import Header from '../../components/ui/Header';
 import TournamentDetailsForm from './components/TournamentDetailsForm';
 import RoundsConfiguration from './components/RoundsConfiguration';
 import PlayerRosterManager from './components/PlayerRosterManager';
+import TeamManager from './components/TeamManager'; // Import the new component
 import SetupProgress from './components/SetupProgress';
 import PlayerReconciliationModal from './components/PlayerReconciliationModal';
 import Icon from '../../components/AppIcon';
@@ -25,27 +26,71 @@ const TournamentSetupConfiguration = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
   const [reconciliationData, setReconciliationData] = useState({ imports: [], matches: new Map() });
+  
   const [formData, setFormData] = useState({
-    name: '', venue: '', date: '', rounds: 8, playerCount: 0, player_ids: []
+    name: '', venue: '', date: '', type: 'individual', rounds: 8, playerCount: 0, player_ids: [], teams: []
   });
 
+  const [playerDetails, setPlayerDetails] = useState([]); // To store full player objects
+
   useEffect(() => {
-    // This is a placeholder for the draft functionality which is currently out of scope
-    // due to the new database architecture. It can be re-implemented later.
+    // Placeholder for draft functionality
   }, [draftId]);
+  
+  // Fetch full player details when player_ids are finalized
+  useEffect(() => {
+    const fetchPlayerDetails = async () => {
+        if(formData.player_ids.length === 0) return;
+        
+        const { data, error } = await supabase
+            .from('players')
+            .select('id, name')
+            .in('id', formData.player_ids);
+        
+        if (error) {
+            toast.error("Failed to fetch player details for team management.");
+        } else {
+            setPlayerDetails(data);
+        }
+    };
+    fetchPlayerDetails();
+  }, [formData.player_ids]);
+
 
   const handleFormChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+  
+  const handleTeamUpdate = (teams) => {
+      setFormData(prev => ({ ...prev, teams }));
+  }
 
   const handleNextStep = () => {
-    if (currentStep === 'details') setCurrentStep('players');
-    if (currentStep === 'players') setCurrentStep('rounds');
+    if (currentStep === 'details') {
+        setCurrentStep('players');
+    } else if (currentStep === 'players') {
+        if (formData.type === 'team') {
+            setCurrentStep('teams');
+        } else {
+            setCurrentStep('rounds');
+        }
+    } else if (currentStep === 'teams') {
+        setCurrentStep('rounds');
+    }
   };
 
   const handlePrevStep = () => {
-    if (currentStep === 'rounds') setCurrentStep('players');
-    if (currentStep === 'players') setCurrentStep('details');
+    if (currentStep === 'rounds') {
+        if (formData.type === 'team') {
+            setCurrentStep('teams');
+        } else {
+            setCurrentStep('players');
+        }
+    } else if (currentStep === 'teams') {
+        setCurrentStep('players');
+    } else if (currentStep === 'players') {
+        setCurrentStep('details');
+    }
   };
 
   const startReconciliation = async (parsedPlayers) => {
@@ -112,15 +157,14 @@ const TournamentSetupConfiguration = () => {
   const handleCreateTournament = async () => {
     setIsLoading(true);
     try {
-        // Step 1: Create the tournament record
         const tournamentData = {
             name: formData.name,
             venue: formData.venue,
             date: formData.date,
             rounds: formData.rounds,
             status: 'setup',
-            playerCount: formData.playerCount
-            // We no longer save player_ids here
+            playerCount: formData.playerCount,
+            type: formData.type
         };
         
         const { data: newTournament, error: tournamentError } = await supabase
@@ -131,31 +175,54 @@ const TournamentSetupConfiguration = () => {
 
         if (tournamentError) throw tournamentError;
 
-        // Step 2: Fetch details of the finalized players to get their ratings for seeding
-        const { data: playerDetails, error: playerError } = await supabase
+        const { data: fetchedPlayerDetails, error: playerError } = await supabase
             .from('players')
             .select('id, rating')
             .in('id', formData.player_ids);
         
         if (playerError) throw playerError;
 
-        // Step 3: Seed the players and prepare records for the join table
-        const seededPlayers = [...playerDetails]
+        const seededPlayers = [...fetchedPlayerDetails]
             .sort((a, b) => (b.rating || 0) - (a.rating || 0))
             .map((player, index) => ({ 
                 tournament_id: newTournament.id,
                 player_id: player.id,
                 seed: index + 1,
-                rank: index + 1 // Initial rank is based on seed
+                rank: index + 1
             }));
         
-        // Step 4: Insert all player records into the tournament_players join table
         const { error: joinTableError } = await supabase
             .from('tournament_players')
             .insert(seededPlayers);
             
         if (joinTableError) throw joinTableError;
+        
+        if (formData.type === 'team' && formData.teams.length > 0) {
+            const teamRecords = formData.teams.map(t => ({
+                name: t.name,
+                tournament_id: newTournament.id
+            }));
+            
+            const { data: createdTeams, error: teamError } = await supabase
+                .from('teams')
+                .insert(teamRecords)
+                .select('id, name');
+            
+            if (teamError) throw teamError;
 
+            for (const team of formData.teams) {
+                const createdTeam = createdTeams.find(ct => ct.name === team.name);
+                if (createdTeam) {
+                    const playerIdsToUpdate = team.players.map(p => p.id);
+                    await supabase
+                        .from('tournament_players')
+                        .update({ team_id: createdTeam.id })
+                        .eq('tournament_id', newTournament.id)
+                        .in('player_id', playerIdsToUpdate);
+                }
+            }
+        }
+        
         toast.success('Tournament created successfully!');
         setTimeout(() => navigate(`/tournament/${newTournament.id}/dashboard`), 1000);
     } catch (error) {
@@ -164,6 +231,13 @@ const TournamentSetupConfiguration = () => {
         setIsLoading(false);
     }
   };
+  
+  const stepsConfig = [
+      { id: 'details', label: 'Details' },
+      { id: 'players', label: 'Players' },
+      ...(formData.type === 'team' ? [{ id: 'teams', label: 'Teams' }] : []),
+      { id: 'rounds', label: 'Rounds' }
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -188,7 +262,7 @@ const TournamentSetupConfiguration = () => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="md:col-span-1">
-                <SetupProgress currentStep={currentStep} onStepClick={setCurrentStep} />
+                <SetupProgress steps={stepsConfig} currentStep={currentStep} onStepClick={setCurrentStep} />
             </div>
             <div className="md:col-span-3">
               <AnimatePresence mode="wait">
@@ -201,6 +275,7 @@ const TournamentSetupConfiguration = () => {
                 >
                   {currentStep === 'details' && <TournamentDetailsForm formData={formData} onChange={handleFormChange} errors={{}} />}
                   {currentStep === 'players' && <PlayerRosterManager formData={formData} onStartReconciliation={startReconciliation} />}
+                  {currentStep === 'teams' && <TeamManager formData={{...formData, player_ids: playerDetails}} onTeamUpdate={handleTeamUpdate} />}
                   {currentStep === 'rounds' && <RoundsConfiguration formData={formData} onChange={handleFormChange} errors={{}} />}
                 </motion.div>
               </AnimatePresence>

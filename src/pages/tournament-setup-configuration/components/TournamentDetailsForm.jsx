@@ -1,6 +1,7 @@
 import React from 'react';
 import Input from '../../../components/ui/Input';
 import Icon from '../../../components/AppIcon';
+import { cn } from '../../../utils/cn';
 
 const TournamentDetailsForm = ({ formData, onChange, errors }) => {
   const handleInputChange = (field, value) => {
@@ -57,6 +58,35 @@ const TournamentDetailsForm = ({ formData, onChange, errors }) => {
           required
           className="glow-focus"
         />
+
+        {/* --- New Tournament Type Field --- */}
+        <div className="lg:col-span-2">
+            <label className="text-sm font-medium leading-none text-foreground">
+                Tournament Type
+            </label>
+            <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-input p-1">
+                <button
+                    type="button"
+                    onClick={() => handleInputChange('type', 'individual')}
+                    className={cn(
+                        "px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                        formData.type === 'individual' ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted/50'
+                    )}
+                >
+                    Individual
+                </button>
+                <button
+                    type="button"
+                    onClick={() => handleInputChange('type', 'team')}
+                    className={cn(
+                        "px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                        formData.type === 'team' ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted/50'
+                    )}
+                >
+                    Team Event
+                </button>
+            </div>
+        </div>
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import Icon from './AppIcon';
 import Button from './ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const PlayerStatsModal = ({ player, results, onClose, onSelectPlayer, onEditResult }) => {
+const PlayerStatsModal = ({ player, results, onClose, onSelectPlayer, onEditResult, teamName }) => {
   const handleOpponentClick = (name) => {
     onClose(); // Close current modal
     setTimeout(() => onSelectPlayer(name), 150); // Open new modal after a short delay
@@ -15,7 +15,6 @@ const PlayerStatsModal = ({ player, results, onClose, onSelectPlayer, onEditResu
         .sort((a, b) => a.round - b.round)
     : [];
 
-  // --- Advanced Statistics Calculation ---
   const advancedStats = React.useMemo(() => {
     if (!player || playerResults.length === 0) {
       return {
@@ -26,32 +25,23 @@ const PlayerStatsModal = ({ player, results, onClose, onSelectPlayer, onEditResu
         avgScore: 0,
       };
     }
-
     const opponents = playerResults.map(r => {
         const isPlayer1 = r.player1_name === player.name;
         const opponentName = isPlayer1 ? r.player2_name : r.player1_name;
-        // This is a simplified lookup. A more robust system would pass the full player list in.
-        // For now, we assume the opponent exists and has a rating of 1500 if not found.
         const opponent = results.find(p => p.name === opponentName) || { rating: 1500 }; 
         return opponent;
     });
-
     const totalOpponentRating = opponents.reduce((acc, opp) => acc + (opp.rating || 1500), 0);
     const avgOpponentRating = Math.round(totalOpponentRating / opponents.length);
-
     const wins = playerResults.filter(r => {
         const isPlayer1 = r.player1_name === player.name;
         return isPlayer1 ? r.score1 > r.score2 : r.score2 > r.score1;
     }).length;
-
     const losses = playerResults.filter(r => {
         const isPlayer1 = r.player1_name === player.name;
         return isPlayer1 ? r.score1 < r.score2 : r.score2 < r.score1;
     }).length;
-
-    // Elo-based performance rating formula
     const performanceRating = avgOpponentRating + 400 * (wins - losses) / playerResults.length;
-
     return {
       avgOpponentRating: avgOpponentRating,
       performanceRating: Math.round(performanceRating),
@@ -88,7 +78,13 @@ const PlayerStatsModal = ({ player, results, onClose, onSelectPlayer, onEditResu
                 )}
                 <div>
                     <h2 className="text-2xl font-heading font-semibold text-foreground">{player.name}</h2>
-                    <p className="text-muted-foreground">Rank: <span className="text-primary font-bold">{player.rank}</span> • Record: <span className="text-primary font-bold">{player.wins}-{player.losses}</span> • Spread: <span className={`font-bold ${player.spread > 0 ? 'text-success' : 'text-destructive'}`}>{player.spread > 0 ? '+' : ''}{player.spread}</span></p>
+                    {teamName && (
+                        <div className="flex items-center space-x-2 text-sm text-accent mt-1">
+                            <Icon name="Shield" size={14} />
+                            <span>{teamName}</span>
+                        </div>
+                    )}
+                    <p className="text-muted-foreground mt-1">Rank: <span className="text-primary font-bold">{player.rank}</span> • Record: <span className="text-primary font-bold">{player.wins}-{player.losses}</span> • Spread: <span className={`font-bold ${player.spread > 0 ? 'text-success' : 'text-destructive'}`}>{player.spread > 0 ? '+' : ''}{player.spread}</span></p>
                 </div>
               </div>
               <Button variant="ghost" size="icon" onClick={onClose}><Icon name="X" /></Button>

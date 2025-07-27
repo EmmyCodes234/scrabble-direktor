@@ -35,7 +35,7 @@ const assignStarts = (pairings, players) => {
     });
 };
 
-const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScore, recentResults }) => {
+const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScore, recentResults, onUnpairRound }) => {
   const [currentPairings, setCurrentPairings] = useState([]);
   const [isPaired, setIsPaired] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,7 +72,6 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
             }
         }
         if (!opponentFound) {
-            // Fallback for when no non-rematch is possible
             let player2 = availablePlayers.shift();
             newPairings.push({ table: table++, player1: { name: player1.name }, player2: { name: player2.name } });
         }
@@ -107,13 +106,75 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
     return assignStarts(pairings, players);
   };
 
+  const generateTeamRoundRobinPairings = async (currentRound) => {
+    const { data: teamsData, error: teamsError } = await supabase
+        .from('teams')
+        .select(`*, tournament_players(*, players(*))`)
+        .eq('tournament_id', tournamentInfo.id);
+
+    if (teamsError || !teamsData) {
+        toast.error("Could not fetch team data for pairings.");
+        return [];
+    }
+    
+    let teams = teamsData;
+    if (teams.length % 2 !== 0) {
+        teams.push({ id: 'bye', name: 'BYE Team', tournament_players: [] });
+    }
+
+    const numTeams = teams.length;
+    const teamPairings = [];
+    const teamIds = teams.map(t => t.id);
+
+    for (let i = 0; i < numTeams / 2; i++) {
+        const team1Id = teamIds[i];
+        const team2Id = teamIds[numTeams - 1 - i];
+        if(team1Id !== 'bye' && team2Id !== 'bye') {
+            teamPairings.push([team1Id, team2Id]);
+        }
+    }
+    
+    teamIds.splice(1, 0, teamIds.pop());
+
+    const finalPairings = [];
+    let table = 1;
+
+    for (const [team1Id, team2Id] of teamPairings) {
+        const team1 = teams.find(t => t.id === team1Id);
+        const team2 = teams.find(t => t.id === team2Id);
+
+        const team1Players = team1.tournament_players.sort((a,b) => a.seed - b.seed);
+        const team2Players = team2.tournament_players.sort((a,b) => a.seed - b.seed);
+
+        for (let i = 0; i < Math.min(team1Players.length, team2Players.length); i++) {
+            finalPairings.push({
+                table: table++,
+                player1: { name: team1Players[i].players.name },
+                player2: { name: team2Players[i].players.name },
+                teamMatch: `${team1.name} vs ${team2.name}`
+            });
+        }
+    }
+    
+    const pairedPlayerIds = new Set(finalPairings.flatMap(p => [p.player1.name, p.player2.name]));
+    const allPlayerNames = new Set(players.map(p => p.name));
+    
+    allPlayerNames.forEach(playerName => {
+        if(!pairedPlayerIds.has(playerName)) {
+            finalPairings.push({ table: 'BYE', player1: { name: playerName }, player2: { name: 'BYE' } });
+        }
+    });
+
+    return assignStarts(finalPairings, players);
+  };
+
   const checkForClinch = (sortedPlayers, roundsRemaining) => {
     if (roundsRemaining > 2 || sortedPlayers.length < 2) return null;
     const p1 = sortedPlayers[0];
     const p2 = sortedPlayers[1];
     const p1Score = p1.wins + (p1.ties * 0.5);
     const p2MaxScore = p2.wins + (p2.ties * 0.5) + roundsRemaining;
-    if (p1Score > p2MaxScore + 0.5) { // Needs to be ahead by more than 0.5 wins
+    if (p1Score > p2MaxScore + 0.5) {
         return p1;
     }
     return null;
@@ -128,54 +189,56 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
     const baseRound = advancedSettings?.base_round ?? currentRound - 1;
     const allowRematches = advancedSettings?.allow_rematches ?? true;
 
-    toast.info(`Pairing Round ${currentRound} using ${pairingSystem.replace('_',' ')} system.`);
-    if (baseRound !== currentRound - 1) toast.info(`Basing standings on Round ${baseRound}.`);
-    if (!allowRematches) toast.info("Rematches are disallowed.");
+    toast.info(`Pairing Round ${currentRound} using ${pairingSystem.replace(/_/g,' ')} system.`);
     
-    let playersToPair = [...players];
-    if (baseRound < currentRound - 1) {
-        const { data: historicalResults } = await supabase.from('results').select('*').eq('tournament_id', tournamentInfo.id).lte('round', baseRound);
-        const statsMap = new Map(players.map(p => [p.id, { ...p, wins: 0, losses: 0, ties: 0 }]));
-        for (const res of historicalResults) {
-            const p1Stats = statsMap.get(res.player1_id);
-            const p2Stats = statsMap.get(res.player2_id);
-            if (!p1Stats || !p2Stats) continue;
-            if (res.score1 > res.score2) { p1Stats.wins++; p2Stats.losses++; }
-            else if (res.score2 > res.score1) { p2Stats.wins++; p1Stats.losses++; }
-            else { p1Stats.ties++; p2Stats.ties++; }
-        }
-        playersToPair = Array.from(statsMap.values());
-    }
-    playersToPair.sort((a, b) => (b.wins + (b.ties * 0.5)) - (a.wins + (a.ties * 0.5)));
-
-    const roundsRemaining = tournamentInfo.rounds - currentRound;
-    const clincher = tournamentInfo.gibson_rule_enabled ? checkForClinch(playersToPair, roundsRemaining) : null;
-
     let singleRoundPairings = [];
-    if (clincher) {
-        toast.info(`${clincher.name} has clinched first place! Applying the Gibson Rule.`);
-        // Simplified Gibson logic: Pair clincher with highest non-prizewinner
-        const prizeWinners = 3; // Assume 3 prize places for now
-        const nonContenders = playersToPair.slice(prizeWinners);
-        const gibsonOpponent = nonContenders[0];
-        if (gibsonOpponent) {
-            singleRoundPairings.push({table: 1, player1: {name: clincher.name}, player2: {name: gibsonOpponent.name}});
-            const remainingPlayers = playersToPair.filter(p => p.id !== clincher.id && p.id !== gibsonOpponent.id);
-            singleRoundPairings = [...singleRoundPairings, ...generateSwissPairings(remainingPlayers, new Set())];
-        }
+
+    if (pairingSystem === 'team_round_robin') {
+        singleRoundPairings = await generateTeamRoundRobinPairings(currentRound);
     } else {
-        if (pairingSystem === 'round_robin') {
-            const playersBySeed = [...players].sort((a, b) => a.seed - b.seed);
-            singleRoundPairings = generateRoundRobinPairings(playersBySeed, currentRound);
-        } else {
-            let previousMatchups = new Set();
-            if (!allowRematches) {
-                const { data: allResults } = await supabase.from('results').select('player1_id, player2_id').eq('tournament_id', tournamentInfo.id);
-                allResults.forEach(res => {
-                    previousMatchups.add(`${res.player1_id}-${res.player2_id}`);
-                });
+        let playersToPair = [...players];
+        if (baseRound < currentRound - 1) {
+            const { data: historicalResults } = await supabase.from('results').select('*').eq('tournament_id', tournamentInfo.id).lte('round', baseRound);
+            const statsMap = new Map(players.map(p => [p.id, { ...p, wins: 0, losses: 0, ties: 0 }]));
+            for (const res of historicalResults) {
+                const p1Stats = statsMap.get(res.player1_id);
+                const p2Stats = statsMap.get(res.player2_id);
+                if (!p1Stats || !p2Stats) continue;
+                if (res.score1 > res.score2) { p1Stats.wins++; p2Stats.losses++; }
+                else if (res.score2 > res.score1) { p2Stats.wins++; p1Stats.losses++; }
+                else { p1Stats.ties++; p2Stats.ties++; }
             }
-            singleRoundPairings = generateSwissPairings(playersToPair, previousMatchups);
+            playersToPair = Array.from(statsMap.values());
+        }
+        playersToPair.sort((a, b) => (b.wins + (b.ties * 0.5)) - (a.wins + (a.ties * 0.5)));
+
+        const roundsRemaining = tournamentInfo.rounds - currentRound;
+        const clincher = tournamentInfo.gibson_rule_enabled ? checkForClinch(playersToPair, roundsRemaining) : null;
+
+        if (clincher) {
+            toast.info(`${clincher.name} has clinched first place! Applying the Gibson Rule.`);
+            const prizeWinners = 3; 
+            const nonContenders = playersToPair.slice(prizeWinners);
+            const gibsonOpponent = nonContenders[0];
+            if (gibsonOpponent) {
+                singleRoundPairings.push({table: 1, player1: {name: clincher.name}, player2: {name: gibsonOpponent.name}});
+                const remainingPlayers = playersToPair.filter(p => p.id !== clincher.id && p.id !== gibsonOpponent.id);
+                singleRoundPairings = [...singleRoundPairings, ...generateSwissPairings(remainingPlayers, new Set())];
+            }
+        } else {
+            if (pairingSystem === 'round_robin') {
+                const playersBySeed = [...players].sort((a, b) => a.seed - b.seed);
+                singleRoundPairings = generateRoundRobinPairings(playersBySeed, currentRound);
+            } else {
+                let previousMatchups = new Set();
+                if (!allowRematches) {
+                    const { data: allResults } = await supabase.from('results').select('player1_id, player2_id').eq('tournament_id', tournamentInfo.id);
+                    allResults.forEach(res => {
+                        previousMatchups.add(`${res.player1_id}-${res.player2_id}`);
+                    });
+                }
+                singleRoundPairings = generateSwissPairings(playersToPair, previousMatchups);
+            }
         }
     }
     
@@ -217,9 +280,15 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
               </div>
           ) : (
                <div>
-                  <h3 className="font-heading font-medium text-lg text-foreground mb-4">
-                    Pairings for Round {tournamentInfo.currentRound}
-                  </h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-heading font-medium text-lg text-foreground">
+                      Pairings for Round {tournamentInfo.currentRound}
+                    </h3>
+                    <Button variant="destructive" size="sm" onClick={onUnpairRound}>
+                        <Icon name="Undo2" size={14} className="mr-2"/>
+                        Unpair Round
+                    </Button>
+                  </div>
                   <div className="space-y-3">
                       {currentPairings.map((pairing) => {
                           const player1 = players.find(p => p.name === pairing.player1.name);
@@ -242,7 +311,8 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
                                               <span className="font-medium text-foreground">{player1?.name}</span>
                                               <span className="text-muted-foreground">(#{player1?.rank})</span>
                                           </div>
-                                          <div className="my-1 pl-6 text-xs font-semibold text-muted-foreground">vs</div>
+                                          {pairing.teamMatch && <div className="my-1 pl-6 text-xs font-semibold text-accent">{pairing.teamMatch}</div>}
+                                          {!pairing.teamMatch && <div className="my-1 pl-6 text-xs font-semibold text-muted-foreground">vs</div>}
                                           <div className="flex items-center gap-2">
                                               {pairing.player2.starts && <Icon name="Play" size={14} className="text-primary"/>}
                                               <span className="font-medium text-foreground">{player2?.name}</span>

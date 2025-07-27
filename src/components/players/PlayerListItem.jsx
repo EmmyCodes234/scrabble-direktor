@@ -2,7 +2,7 @@ import React from 'react';
 import Icon from '../AppIcon';
 import Button from '../ui/Button';
 
-const PlayerListItem = ({ player, onEdit, onRemove, isSelected, onSelect }) => {
+const PlayerListItem = ({ player, onEdit, onRemove, isSelected, onSelect, teamName }) => {
   const statusInfo = {
     active: { icon: 'UserCheck', color: 'text-success', label: 'Active' },
     inactive: { icon: 'UserX', color: 'text-warning', label: 'Inactive' },
@@ -12,7 +12,6 @@ const PlayerListItem = ({ player, onEdit, onRemove, isSelected, onSelect }) => {
   return (
     <div className={`flex items-center p-4 transition-colors ${isSelected ? 'bg-primary/10' : 'hover:bg-muted/10'}`}>
       <div className="flex items-center space-x-4 flex-1">
-        <input type="checkbox" checked={isSelected} onChange={() => onSelect(player.id)} className="w-4 h-4" />
         
         {player.photo_url ? (
           <img src={player.photo_url} alt={player.name} className="w-10 h-10 rounded-full object-cover" />
@@ -24,7 +23,13 @@ const PlayerListItem = ({ player, onEdit, onRemove, isSelected, onSelect }) => {
 
         <div>
           <h3 className="font-medium text-foreground">{player.name}</h3>
-          <div className={`flex items-center space-x-1 text-sm ${statusInfo.color}`}>
+          {teamName && (
+              <div className="flex items-center space-x-1 text-xs text-accent">
+                  <Icon name="Shield" size={12} />
+                  <span>{teamName}</span>
+              </div>
+          )}
+          <div className={`flex items-center space-x-1 text-sm mt-1 ${statusInfo.color}`}>
             <Icon name={statusInfo.icon} size={14} />
             <span>{statusInfo.label}</span>
           </div>
