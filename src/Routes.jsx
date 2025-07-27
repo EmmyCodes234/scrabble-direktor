@@ -7,7 +7,8 @@ import ErrorBoundary from "components/ErrorBoundary";
 import LandingPage from "pages/LandingPage";
 import LoginPage from "pages/LoginPage";
 import SignupPage from "pages/SignupPage";
-import DocumentationPage from "pages/DocumentationPage"; // Import the new Docs Page
+import DocumentationPage from "pages/DocumentationPage";
+import ProfileSettings from "pages/ProfileSettings"; // Import the new Profile page
 
 import TournamentLobby from "pages/TournamentLobby";
 import TournamentSetupConfiguration from "pages/tournament-setup-configuration";
@@ -26,13 +27,14 @@ const Routes = () => {
       <ErrorBoundary>
       <ScrollToTop />
       <RouterRoutes>
-        {/* New Public and Auth Routes */}
+        {/* Public and Auth Routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/documentation" element={<DocumentationPage />} />
-
-        {/* Existing App Routes (assuming they will be protected later) */}
+        
+        {/* App Routes (assuming they will be protected later) */}
+        <Route path="/profile" element={<ProfileSettings />} />
         <Route path="/lobby" element={<TournamentLobby />} />
         <Route path="/tournament-setup-configuration" element={<TournamentSetupConfiguration />} />
         

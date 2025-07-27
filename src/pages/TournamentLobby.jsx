@@ -6,33 +6,56 @@ import Button from '../components/ui/Button';
 import { supabase } from '../supabaseClient';
 import { toast, Toaster } from 'sonner';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const TournamentLobby = () => {
   const [tournaments, setTournaments] = useState([]);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [tournamentToDelete, setTournamentToDelete] = useState(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const navigate = useNavigate();
 
-  const fetchTournaments = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('tournaments')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching tournaments:', error);
-      toast.error("Failed to load tournaments.");
-    } else {
-      setTournaments(data);
-    }
-    setLoading(false);
-  };
-
   useEffect(() => {
-    fetchTournaments();
-  }, []);
+    const fetchUserAndTournaments = async () => {
+        setLoading(true);
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+            setUser(session.user);
+        } else {
+            navigate('/login');
+            return;
+        }
+
+        const { data, error } = await supabase
+          .from('tournaments')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching tournaments:', error);
+          toast.error("Failed to load tournaments.");
+        } else {
+          setTournaments(data);
+        }
+        setLoading(false);
+    };
+
+    fetchUserAndTournaments();
+  }, [navigate]);
+
+  const handleLogout = async () => {
+    setUserMenuOpen(false);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+        toast.error(`Logout failed: ${error.message}`);
+    } else {
+        toast.success("You have been logged out.");
+        navigate('/');
+    }
+  };
 
   const handleSelectTournament = (tournament) => {
     if (tournament.status === 'draft') {
@@ -46,9 +69,6 @@ const TournamentLobby = () => {
     const url = `https://direktorapp.netlify.app/tournaments/${tournamentId}/live`;
     navigator.clipboard.writeText(url).then(() => {
         toast.success("Public link copied to clipboard!");
-    }, (err) => {
-        toast.error("Failed to copy link.");
-        console.error('Could not copy text: ', err);
     });
   };
 
@@ -59,7 +79,6 @@ const TournamentLobby = () => {
 
   const handleDeleteTournament = async () => {
     if (!tournamentToDelete) return;
-
     const { error } = await supabase
         .from('tournaments')
         .delete()
@@ -69,9 +88,8 @@ const TournamentLobby = () => {
         toast.error(`Failed to delete tournament: ${error.message}`);
     } else {
         toast.success(`Tournament "${tournamentToDelete.name}" has been deleted.`);
-        fetchTournaments();
+        setTournaments(prev => prev.filter(t => t.id !== tournamentToDelete.id));
     }
-
     setShowConfirmModal(false);
     setTournamentToDelete(null);
   };
@@ -79,13 +97,14 @@ const TournamentLobby = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Loading Tournaments...</p>
+        <p className="text-muted-foreground">Loading Lobby...</p>
       </div>
     );
   }
   
   const officialTournaments = tournaments.filter(t => t.status !== 'draft');
   const draftTournaments = tournaments.filter(t => t.status === 'draft');
+  const userName = user?.user_metadata?.full_name || user?.email;
 
   return (
     <>
@@ -103,10 +122,38 @@ const TournamentLobby = () => {
         <main className="pt-20 pb-8">
           <div className="max-w-4xl mx-auto px-6">
             <div className="flex justify-between items-center mb-8">
-              <h1 className="text-3xl font-heading font-bold text-gradient">Tournament Lobby</h1>
-              <Button onClick={() => navigate('/tournament-setup-configuration')} iconName="Plus" iconPosition="left">
-                New Tournament
-              </Button>
+                <div>
+                    <h1 className="text-3xl font-heading font-bold text-gradient">Tournament Lobby</h1>
+                    <p className="text-muted-foreground">Welcome back, {userName}!</p>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Button onClick={() => navigate('/tournament-setup-configuration')} iconName="Plus" iconPosition="left">
+                        New Tournament
+                    </Button>
+                    <div className="relative">
+                        <Button variant="outline" size="icon" onClick={() => setUserMenuOpen(!userMenuOpen)}>
+                            <Icon name="User" size={16} />
+                        </Button>
+                        <AnimatePresence>
+                        {userMenuOpen && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 10 }}
+                                className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-20"
+                            >
+                                <Button variant="ghost" className="w-full justify-start" onClick={() => {navigate('/profile'); setUserMenuOpen(false);}}>
+                                    <Icon name="Settings" size={14} className="mr-2"/> Profile Settings
+                                </Button>
+                                <div className="h-px bg-border mx-2"></div>
+                                <Button variant="ghost" className="w-full justify-start text-destructive hover:text-destructive" onClick={handleLogout}>
+                                    <Icon name="LogOut" size={14} className="mr-2"/> Logout
+                                </Button>
+                            </motion.div>
+                        )}
+                        </AnimatePresence>
+                    </div>
+                </div>
             </div>
             
             {draftTournaments.length > 0 && (
