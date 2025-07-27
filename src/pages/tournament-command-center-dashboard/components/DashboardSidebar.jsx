@@ -37,7 +37,7 @@ const DashboardSidebar = () => {
           </Button>
         ))}
          <div className="border-t border-border pt-2 mt-2">
-            <Button variant="ghost" className="w-full justify-start" onClick={() => navigate('/')}>
+            <Button variant="ghost" className="w-full justify-start" onClick={() => navigate('/lobby')}>
               <Icon name="Home" className="mr-2"/>Lobby
             </Button>
         </div>

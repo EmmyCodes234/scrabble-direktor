@@ -19,10 +19,11 @@ const pairingSystems = [
 const PairingManagementPage = () => {
     const { tournamentId } = useParams();
     const [tournament, setTournament] = useState(null);
-    const [settings, setSettings] = useState({ 
-        pairing_system: 'swiss', 
-        advanced_pairing_enabled: false, 
-        advanced_pairing_modes: {} 
+    const [settings, setSettings] = useState({
+        pairing_system: 'swiss',
+        gibson_rule_enabled: false,
+        advanced_pairing_enabled: false,
+        advanced_pairing_modes: {}
     });
     const [loading, setLoading] = useState(true);
 
@@ -30,18 +31,18 @@ const PairingManagementPage = () => {
         setLoading(true);
         const { data, error } = await supabase
             .from('tournaments')
-            .select('pairing_system, rounds, advanced_pairing_modes')
+            .select('pairing_system, rounds, advanced_pairing_modes, gibson_rule_enabled')
             .eq('id', tournamentId)
             .single();
+
         if (error) {
             toast.error("Failed to load pairing settings.");
         } else if (data) {
             setTournament(data);
-            
-            // Initialize advanced modes for all rounds if not present
+
             const advanced_modes = data.advanced_pairing_modes || {};
             if (data.advanced_pairing_modes) {
-                for(let i = 1; i <= data.rounds; i++) {
+                for (let i = 1; i <= data.rounds; i++) {
                     if (!advanced_modes[i]) {
                         advanced_modes[i] = { system: 'swiss', base_round: i - 1, allow_rematches: true };
                     }
@@ -50,13 +51,14 @@ const PairingManagementPage = () => {
 
             setSettings({
                 pairing_system: data.pairing_system || 'swiss',
+                gibson_rule_enabled: data.gibson_rule_enabled || false,
                 advanced_pairing_enabled: !!data.advanced_pairing_modes,
                 advanced_pairing_modes: advanced_modes
             });
         }
         setLoading(false);
     }, [tournamentId]);
-    
+
     useEffect(() => {
         fetchSettings();
     }, [fetchSettings]);
@@ -64,6 +66,7 @@ const PairingManagementPage = () => {
     const handleSave = async () => {
         const updatePayload = {
             pairing_system: settings.pairing_system,
+            gibson_rule_enabled: settings.gibson_rule_enabled,
             advanced_pairing_modes: settings.advanced_pairing_enabled ? settings.advanced_pairing_modes : null
         };
 
@@ -97,7 +100,7 @@ const PairingManagementPage = () => {
             <Toaster position="top-center" richColors />
             <Header />
             <main className="pt-20 pb-8">
-                 <div className="max-w-7xl mx-auto px-4 sm:px-6">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                         <DashboardSidebar tournamentId={tournamentId} />
                         <div className="md:col-span-3">
@@ -109,7 +112,7 @@ const PairingManagementPage = () => {
                                 <Button onClick={handleSave} iconName="Save" iconPosition="left">Save Changes</Button>
                             </div>
 
-                            <Accordion type="single" collapsible defaultValue="advanced" className="w-full glass-card p-6">
+                            <Accordion type="multiple" defaultValue={['advanced']} className="w-full glass-card p-6 space-y-4">
                                 <AccordionItem value="default">
                                     <AccordionTrigger>Default Pairing System</AccordionTrigger>
                                     <AccordionContent>
@@ -128,7 +131,7 @@ const PairingManagementPage = () => {
                                     <AccordionTrigger>Advanced Mode (Round-by-Round)</AccordionTrigger>
                                     <AccordionContent>
                                         <div className="p-4 bg-muted/10 rounded-lg">
-                                            <Checkbox label="Enable Advanced Pairing Mode" checked={settings.advanced_pairing_enabled} onCheckedChange={(checked) => setSettings({...settings, advanced_pairing_enabled: checked})} description="Set a different pairing system and rule for each specific round."/>
+                                            <Checkbox label="Enable Advanced Pairing Mode" checked={settings.advanced_pairing_enabled} onCheckedChange={(checked) => setSettings({ ...settings, advanced_pairing_enabled: checked })} description="Set a different pairing system and rule for each specific round." />
                                         </div>
                                         {settings.advanced_pairing_enabled && (
                                             <div className="mt-6 space-y-2">
@@ -157,6 +160,20 @@ const PairingManagementPage = () => {
                                                 ))}
                                             </div>
                                         )}
+                                    </AccordionContent>
+                                </AccordionItem>
+                                
+                                <AccordionItem value="special">
+                                    <AccordionTrigger>Special Pairing Rules</AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="p-4 bg-muted/10 rounded-lg">
+                                            <Checkbox
+                                                label="Enable Gibson Rule"
+                                                checked={settings.gibson_rule_enabled}
+                                                onCheckedChange={(checked) => setSettings({ ...settings, gibson_rule_enabled: checked })}
+                                                description="For later rounds, automatically pair a player who has clinched first place against the highest-ranked non-prizewinner."
+                                            />
+                                        </div>
                                     </AccordionContent>
                                 </AccordionItem>
                             </Accordion>

@@ -134,7 +134,7 @@ const TournamentLobby = () => {
                     <div>
                       <h3 className="font-semibold text-foreground">{tourney.name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {tourney.players?.length || 0} players • {tourney.rounds} rounds • Status: {tourney.status}
+                        {tourney.playerCount || 0} players • {tourney.rounds} rounds • Status: {tourney.status}
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">

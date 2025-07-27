@@ -7,7 +7,6 @@ const ReconciliationRow = ({ imp, matches, onChange }) => {
   const [action, setAction] = useState('create');
   const [linkedPlayerId, setLinkedPlayerId] = useState(null);
 
-  // This effect runs once after the component mounts to set the initial, intelligent default
   useEffect(() => {
     let initialAction = 'create';
     let initialPlayerId = null;
@@ -15,7 +14,6 @@ const ReconciliationRow = ({ imp, matches, onChange }) => {
 
     if (matches && matches.length === 1) {
       const match = matches[0];
-      // Auto-link if there is a single, strong match (e.g., very similar rating)
       if (Math.abs(match.rating - imp.rating) < 50) {
         initialAction = 'link';
         initialPlayerId = match.id;
@@ -25,7 +23,7 @@ const ReconciliationRow = ({ imp, matches, onChange }) => {
     setAction(initialAction);
     setLinkedPlayerId(initialPlayerId);
     onChange(imp, initialAction, initialPlayer);
-  }, [imp, matches, onChange]); // Dependencies ensure this runs only when props change
+  }, [imp, matches, onChange]);
 
   const handleActionChange = (e) => {
     const value = e.target.value;
@@ -55,13 +53,18 @@ const ReconciliationRow = ({ imp, matches, onChange }) => {
       <div>
         {matches && matches.length > 0 ? (
           matches.map(match => (
-            <div key={match.id} className="text-sm p-2 rounded-md bg-muted/20 mb-2">
-              <p className="font-medium flex items-center">
-                <Icon name="User" size={14} className="mr-2"/> {match.name}
-              </p>
-              <p className="pl-6 text-xs text-muted-foreground">
-                Rating: {match.rating} | Location: {match.location || 'N/A'}
-              </p>
+            <div key={match.id} className="text-sm p-2 rounded-md bg-muted/20 mb-2 flex items-center space-x-3">
+              <img 
+                src={match.photo_url || `https://ui-avatars.com/api/?name=${match.name.split(' ').join('+')}&background=0d89ec&color=fff`} 
+                alt={match.name} 
+                className="w-10 h-10 rounded-full object-cover"
+              />
+              <div>
+                <p className="font-medium text-foreground">{match.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  Rating: {match.rating} | Location: {match.location || 'N/A'}
+                </p>
+              </div>
             </div>
           ))
         ) : (

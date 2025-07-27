@@ -11,6 +11,7 @@ import { Toaster } from 'sonner';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import TournamentTicker from '../components/TournamentTicker';
 
 const StatCard = ({ icon, label, value, subtext, color = 'text-primary' }) => (
     <div className="glass-card p-4">
@@ -44,7 +45,6 @@ const PublicTournamentPage = () => {
     const [selectedPlayer, setSelectedPlayer] = useState(null);
     const [showSubmissionModal, setShowSubmissionModal] = useState(false);
     const [showPairingsDropdown, setShowPairingsDropdown] = useState(true);
-    const isMobile = useMediaQuery('(max-width: 768px)');
     
     const standingsRef = useRef(null);
     const pairingsRef = useRef(null);
@@ -81,7 +81,7 @@ const PublicTournamentPage = () => {
                 setPlayers(recalculateRanks(combinedPlayers));
                 setTournament(tournamentData);
 
-                const { data: resultsData, error: rErr } = await supabase.from('results').select('*').eq('tournament_id', tournamentId).order('round', { ascending: true });
+                const { data: resultsData, error: rErr } = await supabase.from('results').select('*').eq('tournament_id', tournamentId).order('created_at', { ascending: false });
                 if (rErr) console.error("Error fetching results", rErr);
                 else setResults(resultsData || []);
 
@@ -95,6 +95,18 @@ const PublicTournamentPage = () => {
         
     }, [tournamentId, recalculateRanks]);
     
+    const tickerMessages = useMemo(() => {
+        return results.slice(0, 10).map(r => {
+            if (r.score1 > r.score2) {
+                return `LATEST: ${r.player1_name} defeated ${r.player2_name} ${r.score1} - ${r.score2}`;
+            } else if (r.score2 > r.score1) {
+                return `LATEST: ${r.player2_name} defeated ${r.player1_name} ${r.score2} - ${r.score1}`;
+            } else {
+                return `LATEST: ${r.player1_name} and ${r.player2_name} drew ${r.score1} - ${r.score2}`;
+            }
+        });
+    }, [results]);
+
     const sortedPlayersByRating = useMemo(() => [...players].sort((a, b) => (b.rating || 0) - (a.rating || 0)), [players]);
     const pairingsByRound = useMemo(() => tournament?.pairing_schedule || {}, [tournament]);
 
@@ -171,9 +183,10 @@ const PublicTournamentPage = () => {
             <AnimatePresence>
                 {showSubmissionModal && <ResultSubmissionModal tournament={tournament} players={players} onClose={() => setShowSubmissionModal(false)} />}
             </AnimatePresence>
+            <TournamentTicker messages={tickerMessages} />
             
-            <div className="min-h-screen bg-background text-foreground pb-10">
-                <header className="relative border-b border-border text-center bg-card/50 py-8">
+            <div className="min-h-screen bg-background text-foreground pb-10 pt-28"> {/* Adjusted padding-top */}
+                <header className="fixed top-0 left-0 right-0 z-50 border-b border-border text-center bg-card/50 py-4">
                     {tournament.banner_url && (
                         <div className="absolute inset-0 h-full w-full overflow-hidden">
                             <img src={tournament.banner_url} alt="Tournament Banner" className="w-full h-full object-cover opacity-20"/>

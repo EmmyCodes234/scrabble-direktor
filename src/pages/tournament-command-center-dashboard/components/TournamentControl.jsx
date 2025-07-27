@@ -4,16 +4,33 @@ import Icon from '../../../components/AppIcon';
 import { toast } from 'sonner';
 import { supabase } from '../../../supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
+import { roundRobinSchedules } from '../../../utils/pairingSchedules';
 
 const assignStarts = (pairings, players) => {
-    // This helper function remains unchanged
     return pairings.map(p => {
-        if (p.player2.name === 'BYE') { p.player1.starts = false; p.player2.starts = false; return p; }
+        if (p.player2.name === 'BYE') {
+            p.player1.starts = false;
+            p.player2.starts = false;
+            return p;
+        }
         const player1 = players.find(pl => pl.name === p.player1.name);
         const player2 = players.find(pl => pl.name === p.player2.name);
-        if (player1?.starts < player2?.starts) { p.player1.starts = true; } 
-        else if (player2?.starts < player1?.starts) { p.player2.starts = true; } 
-        else { Math.random() > 0.5 ? p.player1.starts = true : p.player2.starts = true; }
+        if (!player1 || !player2) return p;
+
+        const p1Starts = player1.starts || 0;
+        const p2Starts = player2.starts || 0;
+
+        if (p1Starts < p2Starts) {
+            p.player1.starts = true;
+        } else if (p2Starts < p1Starts) {
+            p.player2.starts = true;
+        } else {
+            if (Math.random() > 0.5) {
+                p.player1.starts = true;
+            } else {
+                p.player2.starts = true;
+            }
+        }
         return p;
     });
 };
@@ -34,9 +51,8 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
     }
   }, [tournamentInfo]);
   
-  const generatePairings = (playersToPair, pairingSystem, previousMatchups) => {
-    // This logic is simplified for demonstration. A real implementation would be more complex.
-    let availablePlayers = [...playersToPair].sort(() => 0.5 - Math.random());
+  const generateSwissPairings = (playersToPair, previousMatchups) => {
+    let availablePlayers = [...playersToPair];
     let newPairings = [];
     let table = 1;
 
@@ -67,25 +83,57 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
     return assignStarts(newPairings, players);
   };
 
+  const generateRoundRobinPairings = (playersToPair, currentRound) => {
+    const schedule = roundRobinSchedules[players.length];
+    if (!schedule) {
+        toast.error(`Round Robin is not supported for ${players.length} players. Use 4, 6, 8, 10, 12, 14, or 16.`);
+        return [];
+    }
+    const pairings = [];
+    const pairedPlayers = new Set();
+    
+    playersToPair.forEach((player1) => {
+        if (pairedPlayers.has(player1.id)) return;
+
+        const opponentSeed = schedule[player1.seed - 1][currentRound - 1];
+        const player2 = playersToPair.find(p => p.seed === opponentSeed);
+        
+        if (player2 && !pairedPlayers.has(player2.id)) {
+            pairings.push({ table: pairings.length + 1, player1: { name: player1.name }, player2: { name: player2.name } });
+            pairedPlayers.add(player1.id);
+            pairedPlayers.add(player2.id);
+        }
+    });
+    return assignStarts(pairings, players);
+  };
+
+  const checkForClinch = (sortedPlayers, roundsRemaining) => {
+    if (roundsRemaining > 2 || sortedPlayers.length < 2) return null;
+    const p1 = sortedPlayers[0];
+    const p2 = sortedPlayers[1];
+    const p1Score = p1.wins + (p1.ties * 0.5);
+    const p2MaxScore = p2.wins + (p2.ties * 0.5) + roundsRemaining;
+    if (p1Score > p2MaxScore + 0.5) { // Needs to be ahead by more than 0.5 wins
+        return p1;
+    }
+    return null;
+  };
+
   const handlePairCurrentRound = async () => {
     setIsLoading(true);
-    
     const currentRound = tournamentInfo.currentRound || 1;
     const advancedSettings = tournamentInfo.advanced_pairing_modes?.[currentRound];
-
-    // Determine which settings to use
+    
     const pairingSystem = advancedSettings?.system || tournamentInfo.pairing_system;
     const baseRound = advancedSettings?.base_round ?? currentRound - 1;
     const allowRematches = advancedSettings?.allow_rematches ?? true;
 
-    toast.info(`Pairing Round ${currentRound} using ${pairingSystem} system.`);
-    if (baseRound !== currentRound -1) toast.info(`Basing standings on Round ${baseRound}.`);
-    if (!allowRematches) toast.info("Rematches are disallowed for this round.");
-
-    // Determine which player list to use for pairing
+    toast.info(`Pairing Round ${currentRound} using ${pairingSystem.replace('_',' ')} system.`);
+    if (baseRound !== currentRound - 1) toast.info(`Basing standings on Round ${baseRound}.`);
+    if (!allowRematches) toast.info("Rematches are disallowed.");
+    
     let playersToPair = [...players];
     if (baseRound < currentRound - 1) {
-        // We need to reconstruct historical standings
         const { data: historicalResults } = await supabase.from('results').select('*').eq('tournament_id', tournamentInfo.id).lte('round', baseRound);
         const statsMap = new Map(players.map(p => [p.id, { ...p, wins: 0, losses: 0, ties: 0 }]));
         for (const res of historicalResults) {
@@ -98,29 +146,45 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
         }
         playersToPair = Array.from(statsMap.values());
     }
-    playersToPair.sort((a,b) => (b.wins + (b.ties*0.5)) - (a.wins + (a.ties*0.5)));
+    playersToPair.sort((a, b) => (b.wins + (b.ties * 0.5)) - (a.wins + (a.ties * 0.5)));
 
-    // Build a set of previous matchups if rematches are disallowed
-    let previousMatchups = new Set();
-    if (!allowRematches) {
-        const { data: allResults } = await supabase.from('results').select('player1_id, player2_id').eq('tournament_id', tournamentInfo.id);
-        allResults.forEach(res => {
-            previousMatchups.add(`${res.player1_id}-${res.player2_id}`);
-        });
+    const roundsRemaining = tournamentInfo.rounds - currentRound;
+    const clincher = tournamentInfo.gibson_rule_enabled ? checkForClinch(playersToPair, roundsRemaining) : null;
+
+    let singleRoundPairings = [];
+    if (clincher) {
+        toast.info(`${clincher.name} has clinched first place! Applying the Gibson Rule.`);
+        // Simplified Gibson logic: Pair clincher with highest non-prizewinner
+        const prizeWinners = 3; // Assume 3 prize places for now
+        const nonContenders = playersToPair.slice(prizeWinners);
+        const gibsonOpponent = nonContenders[0];
+        if (gibsonOpponent) {
+            singleRoundPairings.push({table: 1, player1: {name: clincher.name}, player2: {name: gibsonOpponent.name}});
+            const remainingPlayers = playersToPair.filter(p => p.id !== clincher.id && p.id !== gibsonOpponent.id);
+            singleRoundPairings = [...singleRoundPairings, ...generateSwissPairings(remainingPlayers, new Set())];
+        }
+    } else {
+        if (pairingSystem === 'round_robin') {
+            const playersBySeed = [...players].sort((a, b) => a.seed - b.seed);
+            singleRoundPairings = generateRoundRobinPairings(playersBySeed, currentRound);
+        } else {
+            let previousMatchups = new Set();
+            if (!allowRematches) {
+                const { data: allResults } = await supabase.from('results').select('player1_id, player2_id').eq('tournament_id', tournamentInfo.id);
+                allResults.forEach(res => {
+                    previousMatchups.add(`${res.player1_id}-${res.player2_id}`);
+                });
+            }
+            singleRoundPairings = generateSwissPairings(playersToPair, previousMatchups);
+        }
     }
-
-    const singleRoundPairings = generatePairings(playersToPair, pairingSystem, previousMatchups);
     
-    const schedule = {
-        ...(tournamentInfo.pairing_schedule || {}),
-        [currentRound]: singleRoundPairings
-    };
-    
+    const schedule = { ...(tournamentInfo.pairing_schedule || {}), [currentRound]: singleRoundPairings };
     const { data, error } = await supabase.from('tournaments').update({ pairing_schedule: schedule }).eq('id', tournamentInfo.id).select().single();
 
     setIsLoading(false);
-    if (error) {
-        toast.error(`Failed to generate pairings: ${error.message}`);
+    if (error || singleRoundPairings.length === 0) {
+        toast.error(`Failed to generate pairings: ${error?.message || 'Unsupported number of players for Round Robin.'}`);
     } else {
         onRoundPaired(data);
     }
@@ -128,7 +192,9 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
 
   return (
     <div className="glass-card p-6">
-      <h2 className="font-heading font-semibold text-xl text-foreground mb-4">Command Deck</h2>
+      <h2 className="font-heading font-semibold text-xl text-foreground mb-4">
+        Command Deck
+      </h2>
       <AnimatePresence mode="wait">
         <motion.div
             key={isPaired ? 'paired' : 'unpaired'}
@@ -139,18 +205,31 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
         >
           {!isPaired ? (
               <div className="text-center">
-                  <Button size="lg" onClick={handlePairCurrentRound} loading={isLoading} disabled={players.length < 2} className="w-full shadow-glow animate-pulse-bright mb-2">
+                  <Button
+                      size="lg"
+                      onClick={handlePairCurrentRound}
+                      loading={isLoading}
+                      disabled={!players || players.length < 2}
+                      className="w-full shadow-glow animate-pulse-bright mb-2"
+                  >
                       Pair & Start Round {tournamentInfo.currentRound || 1}
                   </Button>
               </div>
           ) : (
                <div>
-                  <h3 className="font-heading font-medium text-lg text-foreground mb-4">Pairings for Round {tournamentInfo.currentRound}</h3>
+                  <h3 className="font-heading font-medium text-lg text-foreground mb-4">
+                    Pairings for Round {tournamentInfo.currentRound}
+                  </h3>
                   <div className="space-y-3">
                       {currentPairings.map((pairing) => {
                           const player1 = players.find(p => p.name === pairing.player1.name);
                           const player2 = players.find(p => p.name === pairing.player2.name);
-                          const existingResult = recentResults.find(r => r.round === tournamentInfo.currentRound && ((r.player1_name === player1?.name && r.player2_name === player2?.name) || (r.player1_name === player2?.name && r.player2_name === player1?.name)));
+                          const existingResult = recentResults.find(r => 
+                            r.round === tournamentInfo.currentRound &&
+                            ((r.player1_name === player1?.name && r.player2_name === player2?.name) ||
+                             (r.player1_name === player2?.name && r.player2_name === player1?.name))
+                          );
+
                           return (
                               <div key={pairing.table} className="glass-card p-3 rounded-md flex items-center justify-between">
                                   <div className="flex items-center space-x-4">
@@ -171,7 +250,11 @@ const TournamentControl = ({ tournamentInfo, onRoundPaired, players, onEnterScor
                                           </div>
                                       </div>
                                   </div>
-                                  <Button size="sm" variant={existingResult ? 'outline' : 'default'} onClick={() => onEnterScore({ ...pairing, round: tournamentInfo.currentRound }, existingResult)}>
+                                  <Button 
+                                    size="sm" 
+                                    variant={existingResult ? 'outline' : 'default'} 
+                                    onClick={() => onEnterScore({ ...pairing, round: tournamentInfo.currentRound }, existingResult)}
+                                  >
                                       <Icon name={existingResult ? 'Edit' : 'ClipboardEdit'} size={16} className="mr-2"/>
                                       {existingResult ? 'Edit Score' : 'Enter Score'}
                                   </Button>
